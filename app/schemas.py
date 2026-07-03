@@ -21,3 +21,41 @@ class EmergencyCreate(BaseModel):
 class EmergencyResponse(BaseModel):
     status: str
     message: str
+
+
+class EmergencyOut(BaseModel):
+    id: int
+    caller_name: str
+    caller_phone: Optional[str] = None
+    victim_name: Optional[str] = None
+    emergency_type: str
+    severity: Optional[str] = None
+    location: str
+    landmark: Optional[str] = None
+    victims: Optional[int] = None
+    description: Optional[str] = None
+    immediate_danger: Optional[str] = None
+    summary: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class EmergencySummary(BaseModel):
+    id: int
+    caller_name: str
+    caller_phone: Optional[str] = None
+    emergency_type: str
+    severity: Optional[str] = None
+    location: str
+    victims: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class EmergencyStats(BaseModel):
+    total_emergencies: int
+    by_severity: dict[str, int]
