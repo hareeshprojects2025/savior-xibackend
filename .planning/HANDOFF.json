@@ -1,0 +1,42 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-07-08T20:10:08.826Z",
+  "phase": 3,
+  "phase_name": "Frontend Scaffold + Dashboard Views",
+  "phase_dir": "none (frontend/ directory; no active phase dir)",
+  "plan": 1,
+  "task": 5,
+  "total_tasks": 6,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": 1, "name": "Backend chunk buffering by call_id", "status": "done"},
+    {"id": 2, "name": "Backend flush buffered chunks on transcript/complete", "status": "done"},
+    {"id": 3, "name": "Backend broadcast new_emergency on completion + report", "status": "done"},
+    {"id": 4, "name": "Frontend speaker field from WS message", "status": "done"},
+    {"id": 5, "name": "TranscriptionPage wired to live WebSocket data", "status": "done"},
+    {"id": 6, "name": "FeedPage expand to full width", "status": "done"},
+    {"id": 7, "name": "Fixed CSS @import warning (Google Fonts via <link>)", "status": "done"}
+  ],
+  "remaining_tasks": [
+    {"id": 1, "name": "Phase 2 — Bolna Agent Configuration", "status": "not_started"},
+    {"id": 2, "name": "Phase 5 — Polish (loading/empty/error states, responsive)", "status": "not_started"},
+    {"id": 3, "name": "Phase 6 — Testing & Documentation", "status": "not_started"}
+  ],
+  "blockers": [],
+  "async_jobs": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {"decision": "Chunk buffering by call_id instead of emergency_id", "rationale": "Bolna sends chunks during live call without emergency_id; emergency is only created after transcript/complete webhook matches by caller_phone", "phase": 3},
+    {"decision": "Navigate to /transcriptions from sidebar", "rationale": "Separate page for terminal-style live transcript viewer, distinct from feed card detail panel", "phase": 3},
+    {"decision": "Google Fonts via <link> in index.html instead of CSS @import", "rationale": "Tailwind v4 requires @import to be first; @import after @tailwind/theme causes build warning", "phase": 3}
+  ],
+  "uncommitted_files": [
+    "backend/app/api/v1/endpoints/emergency.py",
+    "backend/app/api/v1/endpoints/transcript.py",
+    "backend/app/schemas/emergency.py",
+    "backend/app/services/transcript_service.py",
+    "frontend/ (entire project — ~45 files)"
+  ],
+  "next_action": "Start the backend dev server (cd backend; uvicorn app.main:app --reload) and frontend dev server (cd frontend; npm run dev) to verify the chunk buffering flow end-to-end with a test call",
+  "context_notes": "Frontend Phase 3+4 are essentially done — scaffold, all views, WebSocket hook, transcription page, emergency card redesign. Backend has chunk buffering wired. Need to start backend+frontend, place a test call, verify transcription appears live. Then move to Phase 5 (polish) and Phase 2 (Bolna config). The frontend/ directory is entirely untracked — will need git add on resume."
+}
