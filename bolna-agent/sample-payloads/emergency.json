@@ -1,0 +1,13 @@
+{
+  "caller_name": "Harish",
+  "caller_phone": "+919876543210",
+  "victim_name": "",
+  "emergency_type": "Fire",
+  "severity": "Medium",
+  "location": "House No. 45, MG Road, Bangalore",
+  "landmark": "",
+  "victims": 3,
+  "description": "Fire with smoke and three people trapped inside.",
+  "immediate_danger": "Smoke",
+  "summary": "Fire at House No. 45, MG Road, Bangalore with smoke present. Three people trapped inside."
+}

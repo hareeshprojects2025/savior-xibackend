@@ -26,7 +26,7 @@ class Emergency(Base):
     landmark = Column(String(500), nullable=True)
     victims = Column(Integer, nullable=True)
     description = Column(Text, nullable=True)
-    immediate_danger = Column(String(10), nullable=True)
+    immediate_danger = Column(String(255), nullable=True)
     summary = Column(Text, nullable=True)
     status = Column(SAEnum(EmergencyStatus), default=EmergencyStatus.pending, nullable=False)
     full_transcript = Column(Text, nullable=True)

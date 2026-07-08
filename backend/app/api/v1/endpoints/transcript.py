@@ -2,6 +2,7 @@ import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from starlette.requests import ClientDisconnect
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -17,7 +18,11 @@ router = APIRouter(tags=["Transcript"])
 @router.post("/transcript/chunk")
 @router.post("/transcript_chunk")
 async def receive_chunk(request: Request, db: Session = Depends(get_db)):
-    body = await request.json()
+    try:
+        body = await request.json()
+    except ClientDisconnect:
+        logger.warning("Client disconnected during chunk receive")
+        return {"status": "acknowledged"}
     logger.info("Bolna chunk payload: %s", json.dumps(body))
 
     transcript_text = body.get("transcript_text") or body.get("chunk_text") or ""
@@ -55,7 +60,11 @@ async def receive_chunk(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/transcript/complete")
 async def receive_complete(request: Request, db: Session = Depends(get_db)):
-    body = await request.json()
+    try:
+        body = await request.json()
+    except ClientDisconnect:
+        logger.warning("Client disconnected during transcript/complete")
+        return {"status": "acknowledged"}
     bolna_call_id = body.get("id")
     status = body.get("status")
     transcript = body.get("transcript")
