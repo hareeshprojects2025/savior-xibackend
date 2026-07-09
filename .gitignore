@@ -38,3 +38,5 @@ thor/
 Thumbs.db
 .DS_Store
 
+frontend/dist/
+.opencode/skills/taste-skill/

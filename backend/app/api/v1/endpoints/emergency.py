@@ -34,8 +34,12 @@ router = APIRouter(tags=["Emergency"])
 
 
 @router.post("/emergency", response_model=EmergencyResponse)
-def report_emergency(data: EmergencyCreate, db: Session = Depends(get_db)):
-    create_emergency(db, data)
+async def report_emergency(data: EmergencyCreate, db: Session = Depends(get_db)):
+    record = create_emergency(db, data)
+    await manager.broadcast({
+        "type": "new_emergency",
+        "data": EmergencyOut.model_validate(record).model_dump(),
+    })
     return {
         "status": "success",
         "message": "Emergency recorded successfully."

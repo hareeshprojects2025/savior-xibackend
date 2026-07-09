@@ -65,7 +65,9 @@ class EmergencySummary(BaseModel):
     emergency_type: str
     severity: Optional[str] = None
     location: str
+    description: Optional[str] = None
     victims: Optional[int] = None
+    immediate_danger: Optional[str] = None
     status: EmergencyStatus
     created_at: datetime
 
@@ -75,4 +77,9 @@ class EmergencySummary(BaseModel):
 
 class EmergencyStats(BaseModel):
     total_emergencies: int
+    active_count: int
+    resolved_count: int
     by_severity: dict[str, int]
+    by_status: dict[str, int]
+    by_type: dict[str, int]
+    by_hour: list[dict[str, int | str]]

@@ -1,6 +1,6 @@
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import func
+from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
 
 from app.models.emergency import Emergency
@@ -83,13 +83,52 @@ def get_mass_casualty_emergencies(db: Session, min_victims: int = 10) -> list[Em
 
 def get_emergency_stats(db: Session) -> dict:
     total = db.query(Emergency).count()
-    rows = (
+
+    severity_rows = (
         db.query(Emergency.severity, func.count(Emergency.id).label("count"))
         .group_by(Emergency.severity)
         .all()
     )
-    by_severity = {row.severity: row.count for row in rows}
-    return {"total_emergencies": total, "by_severity": by_severity}
+    by_severity = {row.severity: row.count for row in severity_rows}
+
+    status_rows = (
+        db.query(Emergency.status, func.count(Emergency.id).label("count"))
+        .group_by(Emergency.status)
+        .all()
+    )
+    by_status = {row.status.value: row.count for row in status_rows}
+
+    type_rows = (
+        db.query(Emergency.emergency_type, func.count(Emergency.id).label("count"))
+        .group_by(Emergency.emergency_type)
+        .all()
+    )
+    by_type = {row.emergency_type: row.count for row in type_rows}
+
+    active_count = db.query(Emergency).filter(Emergency.status != EmergencyStatus.resolved).count()
+    resolved_count = db.query(Emergency).filter(Emergency.status == EmergencyStatus.resolved).count()
+
+    hourly_rows = (
+        db.query(
+            extract("hour", Emergency.created_at).label("hour"),
+            func.count(Emergency.id).label("count"),
+        )
+        .group_by(extract("hour", Emergency.created_at))
+        .order_by(extract("hour", Emergency.created_at))
+        .all()
+    )
+    hourly_counts = {int(row.hour): row.count for row in hourly_rows}
+    by_hour = [{"hour": f"{h:02d}:00", "count": hourly_counts.get(h, 0)} for h in range(24)]
+
+    return {
+        "total_emergencies": total,
+        "active_count": active_count,
+        "resolved_count": resolved_count,
+        "by_severity": by_severity,
+        "by_status": by_status,
+        "by_type": by_type,
+        "by_hour": by_hour,
+    }
 
 
 def get_emergencies_by_caller(db: Session, phone: str) -> list[Emergency]:
