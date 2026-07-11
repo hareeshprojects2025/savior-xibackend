@@ -18,7 +18,7 @@ export function MapPage() {
   const radiusKm = 5
   const [radiusCenter, setRadiusCenter] = useState<[number, number] | null>(null)
 
-  const filteredEmergencies = emergencies.filter((e) => selectedStatuses.includes(e.status))
+  const filteredEmergencies = selectedStatuses.length === 0 ? emergencies : emergencies.filter((e) => selectedStatuses.includes(e.status))
 
   const displayedEmergencies = radiusMode && radiusCenter
     ? filteredEmergencies.filter(e => {

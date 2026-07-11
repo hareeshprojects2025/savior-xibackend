@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import extract, func
@@ -6,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.models.emergency import Emergency
 from app.schemas.emergency import EmergencyCreate, EmergencyUpdate, EmergencyStatus
 from app.core.websocket import manager
+from app.services.geocoding_service import geocode_location
 
 
 def create_emergency(db: Session, data: EmergencyCreate) -> Emergency:
@@ -13,6 +15,12 @@ def create_emergency(db: Session, data: EmergencyCreate) -> Emergency:
     db.add(record)
     db.commit()
     db.refresh(record)
+    if record.latitude is None and record.longitude is None and record.location:
+        coords = asyncio.run(geocode_location(record.location))
+        if coords:
+            record.latitude, record.longitude = coords
+            db.commit()
+            db.refresh(record)
     return record
 
 
@@ -150,6 +158,24 @@ def update_emergency(db: Session, emergency_id: int, data: EmergencyUpdate) -> E
     db.commit()
     db.refresh(record)
     return record
+
+
+def backfill_coordinates(db: Session) -> dict:
+    records = db.query(Emergency).filter(
+        Emergency.latitude.is_(None),
+        Emergency.longitude.is_(None),
+        Emergency.location.isnot(None),
+    ).all()
+    updated = 0; failed = 0
+    for record in records:
+        coords = asyncio.run(geocode_location(record.location))
+        if coords:
+            record.latitude, record.longitude = coords
+            updated += 1
+        else:
+            failed += 1
+    db.commit()
+    return {"total": len(records), "updated": updated, "failed": failed}
 
 
 def delete_emergency(db: Session, emergency_id: int) -> bool:

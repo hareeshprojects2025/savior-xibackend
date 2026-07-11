@@ -28,9 +28,16 @@ from app.services.emergency_service import (
     get_emergencies_by_caller,
     update_emergency,
     delete_emergency,
+    backfill_coordinates,
 )
 
 router = APIRouter(tags=["Emergency"])
+
+
+@router.post("/emergencies/geocode")
+async def geocode_existing(db: Session = Depends(get_db)):
+    result = backfill_coordinates(db)
+    return result
 
 
 @router.post("/emergency", response_model=EmergencyResponse)

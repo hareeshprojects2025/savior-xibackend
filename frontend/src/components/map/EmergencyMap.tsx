@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap, useMapEvents } from "react-leaflet"
 import { divIcon, type LatLngExpression } from "leaflet"
 import "leaflet/dist/leaflet.css"
-import { MapPin } from "lucide-react"
+import { MapPin, Navigation } from "lucide-react"
 import { ErrorState } from "@/components/common/ErrorState"
 import { EmptyState } from "@/components/common/EmptyState"
 import type { Emergency } from "@/lib/types"
@@ -115,16 +115,16 @@ export function EmergencyMap({ emergencies, error, onRetry, onMarkerClick, selec
 
   const noCoords = emergencies.filter((e) => e.latitude == null || e.longitude == null)
 
+  const handleMarkerClick = useCallback((id: number) => {
+    onMarkerClick?.(id)
+  }, [onMarkerClick])
+
   if (error) {
     return <div className="h-full flex items-center justify-center"><ErrorState title="Failed to load map" description={error} onRetry={onRetry} /></div>
   }
   if (emergencies.length === 0) {
     return <div className="h-full flex items-center justify-center"><EmptyState icon={MapPin} title="No incidents to display" description="Map centered on Mumbai" /></div>
   }
-
-  const handleMarkerClick = useCallback((id: number) => {
-    onMarkerClick?.(id)
-  }, [onMarkerClick])
 
   return (
     <div className="h-full relative">
@@ -161,6 +161,15 @@ export function EmergencyMap({ emergencies, error, onRetry, onMarkerClick, selec
           <p className="text-xs font-medium text-gray-500">
             {noCoords.length} incident{noCoords.length !== 1 ? "s" : ""} without coordinates
           </p>
+        </div>
+      )}
+      {markers.length === 0 && noCoords.length > 0 && (
+        <div className="absolute inset-0 z-[1000] flex items-center justify-center pointer-events-none">
+          <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-gray-200 px-6 py-4 shadow-md text-center">
+            <Navigation className="size-8 text-gray-300 mx-auto mb-2" />
+            <p className="text-sm font-bold text-gray-500">No location data</p>
+            <p className="text-xs text-gray-400 mt-1">Emergencies lack coordinates for map display</p>
+          </div>
         </div>
       )}
     </div>
