@@ -1,21 +1,12 @@
 import { useState } from "react"
-import { Play, Download, ArrowRight, Filter, User, MapPin, Phone, Terminal } from "lucide-react"
+import { Download, ArrowRight, Filter, User, MapPin, Phone, Terminal } from "lucide-react"
 import { useEmergencyFeedContext } from "@/hooks/EmergencyFeedContext"
+import { formatTimeAgo } from "@/lib/utils"
 
 interface Line {
   speaker: string
   text: string
   timestamp: string
-}
-
-function getTimeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return "Just now"
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
 }
 
 function CallListItem({ id, caller_name, emergency_type, severity, status, created_at, selected, onClick }: {
@@ -60,7 +51,7 @@ function CallListItem({ id, caller_name, emergency_type, severity, status, creat
       <p className="text-base font-semibold text-gray-900 mb-1">{emergency_type}</p>
       <div className="flex justify-between items-center text-sm text-gray-400">
         <span className="flex items-center gap-1"><User className="size-4" /> {caller_name}</span>
-        <span className="font-mono">{getTimeAgo(created_at)}</span>
+        <span className="font-mono">{formatTimeAgo(created_at)}</span>
       </div>
     </div>
   )
@@ -86,9 +77,24 @@ function TranscriptLine({ line }: { line: Line }) {
   )
 }
 
+function exportTranscript(lines: Line[], emergencyId: number) {
+  if (lines.length === 0) return
+  const blob = new Blob([JSON.stringify(lines, null, 2)], { type: "application/json" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = `transcript-INC-${String(emergencyId).padStart(7, "0")}.json`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 export function TranscriptionPage() {
   const { emergencies, transcripts } = useEmergencyFeedContext()
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [severityFilter, setSeverityFilter] = useState<string | null>(null)
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false)
 
   const selected = emergencies.find((e) => e.id === selectedId) || null
   const selectedLines = selectedId ? (transcripts[selectedId] || []) : []
@@ -96,21 +102,56 @@ export function TranscriptionPage() {
   const sorted = [...emergencies].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   )
+  const filtered = severityFilter
+    ? sorted.filter((e) => e.severity === severityFilter)
+    : sorted
+
+  const severityOptions = ["Critical", "High", "Medium", "Low"] as const
 
   return (
     <div className="flex h-[calc(100vh-3.5rem-1.5rem)] gap-0 -mx-6 -mb-6">
       <aside className="w-72 border-r border-gray-200 bg-gray-50 flex flex-col shrink-0">
-        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white">
-          <h2 className="text-base font-bold text-gray-900 tracking-tight">Transcriptions</h2>
-          <button className="text-gray-400 hover:text-blue-600 transition-colors">
-            <Filter className="size-4" />
-          </button>
+        <div className="px-4 py-3 border-b border-gray-200 bg-white relative">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-bold text-gray-900 tracking-tight">Transcriptions</h2>
+            <button
+              onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+              className={`text-gray-400 hover:text-blue-600 transition-colors ${severityFilter ? "text-blue-600" : ""}`}
+            >
+              <Filter className="size-4" />
+            </button>
+          </div>
+          {showFilterDropdown && (
+            <div className="absolute top-full left-0 right-0 z-10 bg-white border border-gray-200 shadow-lg rounded-b-lg p-1">
+              {severityOptions.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => { setSeverityFilter(severityFilter === s ? null : s); setShowFilterDropdown(false) }}
+                  className={`block w-full text-left px-3 py-1.5 text-sm font-semibold rounded-md transition-colors ${
+                    severityFilter === s
+                      ? "bg-blue-100 text-blue-700"
+                      : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+              {severityFilter && (
+                <button
+                  onClick={() => { setSeverityFilter(null); setShowFilterDropdown(false) }}
+                  className="block w-full text-left px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-md"
+                >
+                  Clear filter
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-2">
-          {sorted.length === 0 && (
+          {filtered.length === 0 && (
             <p className="text-base text-gray-400 text-center py-8">No emergencies yet</p>
           )}
-          {sorted.map((e) => (
+          {filtered.map((e) => (
             <CallListItem
               key={e.id}
               id={e.id}
@@ -149,16 +190,8 @@ export function TranscriptionPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center bg-gray-50 rounded-lg px-2 py-1 border border-gray-200 mr-1">
-                    <button className="p-1 text-blue-600 hover:text-blue-700 transition-colors">
-                      <Play className="size-4 fill-current" />
-                    </button>
-                    <div className="w-20 h-1 bg-gray-200 rounded-full mx-2 relative overflow-hidden">
-                      <div className="absolute left-0 top-0 h-full bg-blue-500 w-1/3" />
-                    </div>
-                    <span className="cockpit-number text-xs text-gray-400">{selectedLines.length} lines</span>
-                  </div>
-                  <button className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-1.5">
+                  <span className="cockpit-number text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded-lg border border-gray-200">{selectedLines.length} lines</span>
+                  <button onClick={() => exportTranscript(selectedLines, selected.id)} className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-1.5">
                     <Download className="size-4" /> Export
                   </button>
                   <button className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-1.5">
@@ -193,7 +226,7 @@ export function TranscriptionPage() {
                   <p className="text-gray-500 text-center py-8">Waiting for transcription...</p>
                 )}
                 {selectedLines.map((line, i) => (
-                  <TranscriptLine key={i} line={line} />
+                  <TranscriptLine key={`${line.timestamp}-${i}`} line={line} />
                 ))}
                 {selectedLines.length > 0 && selected.status !== "resolved" && (
                   <div className="flex gap-4 items-start mt-4">
