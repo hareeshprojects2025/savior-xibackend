@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef } from "react"
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap, useMapEvents } from "react-leaflet"
 import { divIcon, type LatLngExpression } from "leaflet"
 import "leaflet/dist/leaflet.css"
 import { MapPin } from "lucide-react"
@@ -83,15 +83,30 @@ function EmergencyPopup({ emergency, onViewDetails }: { emergency: Emergency; on
   )
 }
 
+function RadiusSelector({ onRadiusSelect, radiusKm }: { onRadiusSelect: (center: [number, number]) => void; radiusKm: number }) {
+  const [clicked, setClicked] = useState<[number, number] | null>(null)
+  useMapEvents({
+    click(e) {
+      const center: [number, number] = [e.latlng.lat, e.latlng.lng]
+      setClicked(center)
+      onRadiusSelect(center)
+    },
+  })
+  return clicked ? <Circle center={clicked} radius={radiusKm * 1000} pathOptions={{ color: "#3B82F6", fillOpacity: 0.1, weight: 2 }} /> : null
+}
+
 interface EmergencyMapProps {
   emergencies: Emergency[]
   error?: string | null
   onRetry?: () => void
   onMarkerClick?: (id: number) => void
   selectedId?: number | null
+  radiusMode?: boolean
+  radiusKm?: number
+  onRadiusSelect?: (center: [number, number]) => void
 }
 
-export function EmergencyMap({ emergencies, error, onRetry, onMarkerClick, selectedId }: EmergencyMapProps) {
+export function EmergencyMap({ emergencies, error, onRetry, onMarkerClick, selectedId, radiusMode, radiusKm = 5, onRadiusSelect }: EmergencyMapProps) {
   const markers = useMemo(() => {
     return emergencies
       .map((e) => ({ emergency: e, coords: getEmergencyCoords(e) }))
@@ -138,6 +153,7 @@ export function EmergencyMap({ emergencies, error, onRetry, onMarkerClick, selec
         ))}
 
         <MapBoundsUpdater emergencies={emergencies} />
+        {radiusMode && onRadiusSelect && <RadiusSelector onRadiusSelect={onRadiusSelect} radiusKm={radiusKm} />}
       </MapContainer>
 
       {noCoords.length > 0 && (

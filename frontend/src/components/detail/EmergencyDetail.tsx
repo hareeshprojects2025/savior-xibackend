@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator"
 import { StatusActions } from "./StatusActions"
 import { StatusTimeline } from "./StatusTimeline"
 import { LiveTranscript } from "./LiveTranscript"
+import { MiniMap } from "./MiniMap"
 import { ConfirmDialog } from "./ConfirmDialog"
 import type { Emergency, EmergencyStatus } from "@/lib/types"
 import type { TranscriptLine } from "@/hooks/useEmergencyFeed"
@@ -163,13 +164,8 @@ export function EmergencyDetail({ emergency, onStatusChange, onDelete, transcrip
 
       <Separator className="bg-gray-200" />
       <div>
-        <div className="h-40 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 flex items-center justify-center mb-2">
-          <div className="flex flex-col items-center text-blue-400">
-            <MapPin className="size-6 mb-1" />
-            <span className="text-sm font-medium">Map loading</span>
-          </div>
-        </div>
-        <p className="text-sm text-gray-600 font-medium mb-1">{emergency.location}</p>
+        <MiniMap location={emergency.location} lat={emergency.latitude} lng={emergency.longitude} />
+        <p className="text-sm text-gray-600 font-medium mb-1 mt-2">{emergency.location}</p>
         <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:underline">
           <ExternalLink className="size-3.5" /> Open in Maps
         </a>
