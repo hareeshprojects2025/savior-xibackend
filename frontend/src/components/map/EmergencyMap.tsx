@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet"
 import { divIcon, type LatLngExpression } from "leaflet"
 import "leaflet/dist/leaflet.css"
@@ -19,12 +19,14 @@ const SEVERITY_MARKER_COLORS: Record<string, string> = {
 
 const DEFAULT_COLOR = "#6B7280"
 
-function createSeverityIcon(severity: string | null) {
+function createSeverityIcon(severity: string | null, selected?: boolean) {
   const color = severity ? SEVERITY_MARKER_COLORS[severity] || DEFAULT_COLOR : DEFAULT_COLOR
-  const svg = `<svg width="36" height="48" viewBox="0 0 36 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 30 18 30s18-16.5 18-30C36 8.06 27.94 0 18 0z" fill="${color}" stroke="white" stroke-width="2"/><circle cx="18" cy="18" r="8" fill="white" opacity="0.9"/><circle cx="18" cy="18" r="4" fill="${color}" opacity="0.7"/></svg>`
+  const strokeColor = selected ? "#2563EB" : "white"
+  const strokeWidth = selected ? 3 : 2
+  const svg = `<svg width="36" height="48" viewBox="0 0 36 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 30 18 30s18-16.5 18-30C36 8.06 27.94 0 18 0z" fill="${color}" stroke="${strokeColor}" stroke-width="${strokeWidth}"/><circle cx="18" cy="18" r="8" fill="white" opacity="0.9"/><circle cx="18" cy="18" r="4" fill="${color}" opacity="0.7"/></svg>`
   return divIcon({
     html: svg,
-    className: "emergency-marker",
+    className: `emergency-marker${selected ? " selected-marker" : ""}`,
     iconSize: [36, 48],
     iconAnchor: [18, 48],
     popupAnchor: [0, -48],
@@ -58,7 +60,7 @@ function MapBoundsUpdater({ emergencies }: { emergencies: Emergency[] }) {
   return null
 }
 
-function EmergencyPopup({ emergency }: { emergency: Emergency }) {
+function EmergencyPopup({ emergency, onViewDetails }: { emergency: Emergency; onViewDetails?: () => void }) {
   const time = new Date(emergency.created_at).toLocaleString()
   return (
     <div className="text-sm leading-relaxed min-w-[200px]">
@@ -74,6 +76,9 @@ function EmergencyPopup({ emergency }: { emergency: Emergency }) {
       {emergency.victims != null && <p className="text-gray-500 text-xs">Victims: {emergency.victims}</p>}
       {emergency.description && <p className="text-gray-500 text-xs mt-1 line-clamp-2">{emergency.description}</p>}
       <p className="text-gray-400 text-[10px] mt-1.5">{time}</p>
+      {onViewDetails && (
+        <button onClick={onViewDetails} className="mt-2 w-full px-2 py-1 bg-blue-600 text-white text-xs font-semibold rounded hover:bg-blue-700">View Details</button>
+      )}
     </div>
   )
 }
@@ -102,6 +107,10 @@ export function EmergencyMap({ emergencies, error, onRetry, onMarkerClick, selec
     return <div className="h-full flex items-center justify-center"><EmptyState icon={MapPin} title="No incidents to display" description="Map centered on Mumbai" /></div>
   }
 
+  const handleMarkerClick = useCallback((id: number) => {
+    onMarkerClick?.(id)
+  }, [onMarkerClick])
+
   return (
     <div className="h-full relative">
       <MapContainer
@@ -119,10 +128,11 @@ export function EmergencyMap({ emergencies, error, onRetry, onMarkerClick, selec
           <Marker
             key={emergency.id}
             position={coords}
-            icon={createSeverityIcon(emergency.severity)}
+            icon={createSeverityIcon(emergency.severity, emergency.id === selectedId)}
+            eventHandlers={{ click: () => handleMarkerClick(emergency.id) }}
           >
             <Popup>
-              <EmergencyPopup emergency={emergency} />
+              <EmergencyPopup emergency={emergency} onViewDetails={() => handleMarkerClick(emergency.id)} />
             </Popup>
           </Marker>
         ))}
