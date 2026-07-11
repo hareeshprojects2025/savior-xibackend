@@ -1,6 +1,8 @@
 import { MapPin, Users, AlertTriangle, Map, Download, ArrowRight, Clock } from "lucide-react"
 import type { Emergency } from "@/lib/types"
 import { STATUS_LABELS } from "@/lib/types"
+import { formatTimeAgo } from "@/lib/utils"
+import { useNavigate } from "react-router-dom"
 
 interface EmergencyCardProps {
   emergency: Emergency
@@ -31,24 +33,30 @@ const timelineColors: Record<string, string> = {
 
 const STATUS_ORDER = ["pending", "dispatched", "en_route", "resolved"] as const
 
-function getTimeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return "Just now"
-  if (mins < 60) return `${mins} min ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
-}
-
 function formatTime(dateStr: string): string {
   return new Date(dateStr).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
 }
 
 export function EmergencyCard({ emergency, selected, onSelect }: EmergencyCardProps) {
+  const navigate = useNavigate()
   const sev = emergency.severity ? severityConfig[emergency.severity] || severityConfig.Low : null
-  const timeAgo = getTimeAgo(emergency.created_at)
+  const timeAgo = formatTimeAgo(emergency.created_at)
   const currentIdx = STATUS_ORDER.indexOf(emergency.status as typeof STATUS_ORDER[number])
+
+  const handlePinToMap = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    navigate(`/map?selected=${emergency.id}`)
+  }
+
+  const handleExportLog = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const blob = new Blob([JSON.stringify(emergency, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url; a.download = `INC-${String(emergency.id).padStart(7, "0")}.json`
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div
@@ -117,13 +125,13 @@ export function EmergencyCard({ emergency, selected, onSelect }: EmergencyCardPr
 
         <div className="flex gap-2">
           <button
-            onClick={(e) => { e.stopPropagation(); onSelect?.(emergency.id) }}
+            onClick={handlePinToMap}
             className="flex items-center gap-1.5 px-3 py-1 bg-white border border-gray-200 rounded-md text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
           >
             <Map className="size-3.5" /> Pin to Map
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); onSelect?.(emergency.id) }}
+            onClick={handleExportLog}
             className="flex items-center gap-1.5 px-3 py-1 bg-white border border-gray-200 rounded-md text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
           >
             <Download className="size-3.5" /> Export Log

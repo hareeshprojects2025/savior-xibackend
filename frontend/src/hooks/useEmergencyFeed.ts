@@ -132,7 +132,11 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
       const res = await fetch("/api/emergencies/recent?limit=50")
       if (res.ok) {
         const data: Emergency[] = await res.json()
-        setEmergencies(data)
+        setEmergencies((prev) => {
+          const dataIds = new Set(data.map((d) => d.id))
+          const wsOnly = prev.filter((e) => !dataIds.has(e.id))
+          return [...data, ...wsOnly]
+        })
       }
     } catch {
       setError("Failed to load emergencies")

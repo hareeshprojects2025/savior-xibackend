@@ -1,6 +1,6 @@
 export type EmergencyStatus = "pending" | "dispatched" | "en_route" | "resolved"
 
-export type Severity = "Critical" | "High" | "Medium" | "Low" | string | null
+export type Severity = "Critical" | "High" | "Medium" | "Low" | null
 
 export interface Emergency {
   id: number

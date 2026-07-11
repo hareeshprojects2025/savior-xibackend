@@ -11,6 +11,7 @@ import { ConfirmDialog } from "./ConfirmDialog"
 import type { Emergency, EmergencyStatus } from "@/lib/types"
 import type { TranscriptLine } from "@/hooks/useEmergencyFeed"
 import { STATUS_LABELS } from "@/lib/types"
+import { formatTimeAgo } from "@/lib/utils"
 
 interface EmergencyDetailProps {
   emergency: Emergency | null
@@ -24,16 +25,6 @@ const statusBadgeColor: Record<string, string> = {
   dispatched: "bg-blue-100 text-blue-800 border-blue-200",
   en_route: "bg-indigo-100 text-indigo-800 border-indigo-200",
   resolved: "bg-green-100 text-green-800 border-green-200",
-}
-
-function getTimeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return "Just now"
-  if (mins < 60) return `${mins} min ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
 }
 
 function Row({ label, value, icon: Icon, children, className }: {
@@ -83,7 +74,7 @@ export function EmergencyDetail({ emergency, onStatusChange, onDelete, transcrip
             {STATUS_LABELS[emergency.status]}
           </Badge>
           <h3 className="text-xl font-bold text-gray-900 tracking-tighter">{emergency.emergency_type}</h3>
-          <p className="text-sm font-medium text-gray-400 mt-0.5 cockpit-number">{getTimeAgo(emergency.created_at)}</p>
+          <p className="text-sm font-medium text-gray-400 mt-0.5 cockpit-number">{formatTimeAgo(emergency.created_at)}</p>
         </div>
       </div>
 
