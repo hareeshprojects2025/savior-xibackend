@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 4
-current_phase_name: Dashboard Views
-status: in_progress
-stopped_at: Completed 4-C-PLAN.md (Transcription + Polish)
-last_updated: "2026-07-11T14:49:19.073Z"
+current_phase: 5
+current_phase_name: Polish
+status: pending
+stopped_at: Phase 4 complete — 3/3 sub-plans, 22 tests, all gates pass
+last_updated: "2026-07-11T20:21:00.000Z"
 progress:
-  total_phases: 3
-  completed_phases: 0
-  total_plans: 4
-  completed_plans: 0
-  percent: 0
+  total_phases: 6
+  completed_phases: 4
+  total_plans: 12
+  completed_plans: 9
+  percent: 75
 ---
 
 # SAVIOR — Project State
@@ -21,15 +21,13 @@ progress:
 
 **Core Value:** Dispatchers see emergencies as they happen and can act on them instantly — no delays between a 911 call being logged and a responder being dispatched.
 
-**Current Focus:** Phase 4 — Dashboard Views
+**Current Focus:** Phase 5 — Polish (pending)
 
 ## Current Position
 
-- **Phase:** 4 (Dashboard Views) — EXECUTING
-- **Plan:** 2 of 3
-- **Plan:** Phase 2 (Bolna Agent Configuration) — Partial (66% — remaining tasks require Bolna dashboard UI) ⏸️
-- **Plan:** Phase 3 (Frontend Scaffold) — Complete ✅
-- **Plan:** Phase 4 (Dashboard Views) — In Progress
+- **Phase:** 4 (Dashboard Views) — Complete ✅
+- **Phase:** 5 (Polish) — Pending ○
+- **Phase 2 (Bolna Agent Configuration)** — Partial (66% — remaining tasks require Bolna dashboard UI) ⏸️
 
 ## Progress
 
@@ -37,70 +35,60 @@ progress:
 Phase 1: Backend Enhancements    [██████████] 100% ✅
 Phase 2: Bolna Agent Config      [██████░░░░]  66% ⏸️
 Phase 3: Frontend Scaffold       [██████████] 100% ✅
-Phase 4: Dashboard Views         [████████░░]  80%
+Phase 4: Dashboard Views         [██████████] 100% ✅
 Phase 5: Polish                  [░░░░░░░░░░]   0%
 Phase 6: Testing & Docs          [░░░░░░░░░░]   0%
 ```
 
-## Recent Decisions
+## Phase 4 Deliverables
 
-| Decision | Outcome |
-|----------|---------|
-| WebSocket (not SSE) at /ws | ✓ Implemented Phase 1 |
-| Status lifecycle: pending→dispatched→en_route→resolved | ✓ Implemented Phase 1 |
-| Burst-chunk transcript approach (every ~10s) | ✓ Implemented Phase 1 |
-| Monorepo layout (backend/ + frontend/ + bolna-agent/) | ✓ Restructured |
-| Thor venv on Python 3.11 (3.14 has no pydantic-core wheel) | ✓ Recreated |
-| No auth for v1 | ✓ Confirmed |
-| Leaflet + OSM (no Mapbox token) | ✓ Confirmed |
-| immediate_danger column widened to VARCHAR(255) | ✓ Fixed Phase 2 |
-| ClientDisconnect handled in transcript endpoints | ✓ Fixed Phase 2 |
-| shadcn v4 Nova preset (base-ui) for components | ✓ Phase 3 |
-| Inter + JetBrains Mono from Google Fonts | ✓ Phase 3 |
-| Color tokens mapped to custom Tailwind theme | ✓ Phase 3 |
-| Shared WebSocket context (EmergencyFeedProvider) | ✓ Phase 4 |
-| EmergencyCard + EmergencyList + FeedFilter | ✓ Phase 4 |
-| EmergencyDetail slide-over (all 5 sections) | ✓ Phase 4 |
-| StatusTimeline + LiveTranscript + MiniMap | ✓ Phase 4 |
-| StatusActions + ConfirmDialog (PATCH integration) | ✓ Phase 4 |
-| StatsGrid with recharts (bar + pie) | ✓ Phase 4 |
-| MapPage with MapFilter + MapLegend | ✓ Phase 4 |
-| ConnectionBanner (offline indicator) | ✓ Phase 4 |
-| Leaflet full map integration with severity markers | ✓ Phase 4 |
-| latitude/longitude columns on emergencies table | ✓ Phase 4 |
-| Marker click → feed selection coupling | ✓ Phase 4 context |
-| Always auto-pan to new emergencies | ✓ Phase 4 context |
-| Radius selection (toggle button + click) | ✓ Phase 4 context |
-| JSON export for transcripts | ✓ Phase 4 context |
-| Severity filter for transcript call list | ✓ Phase 4 context |
-| Remove playback UI from transcription | ✓ Phase 4 context |
-| Fetch full_transcript for completed calls | ✓ Phase 4 context |
-| setPendingStatus(null) in finally block closes ConfirmDialog | ✓ Sub-plan A |
-| emergency_deleted WS message type for real-time UI removal | ✓ Sub-plan A |
-| isRetryingRef prevents WS reconnect loop during manual retry | ✓ Sub-plan A |
+### Bug Fixes (Sub-plan A)
+| Decision | Status | Notes |
+|----------|--------|-------|
+| CR-01 | ✅ | setPendingStatus(null) in finally block closes ConfirmDialog |
+| CR-04 | ✅ | remove_emergency async + WS broadcast removes from UI instantly |
+| CR-02 | ✅ | isRetryingRef prevents reconnect loop during manual retry |
+| WR-05 | ✅ | Empty catch logs parse errors to console |
+
+### Map Enhancements (Sub-plan B)
+| Decision | Status | Notes |
+|----------|--------|-------|
+| D-01 | ✅ | Marker click navigates to `/?selected=N`; "View Details" button + blue outline |
+| D-02 | ✅ | MapBoundsUpdater pans to new arrivals, fits bounds on initial load |
+| D-04 | ✅ | Toggle button activates radius mode; click draws blue L.circle; Haversine filter |
+| D-05 | ✅ | 36x48 teardrop SVG markers with severity colors, white stroke, inner circles |
+| D-06 | ✅ | Real read-only Leaflet MiniMap; fallback on null coordinates |
+
+### Transcription + Polish (Sub-plan C)
+| Decision | Status | Notes |
+|----------|--------|-------|
+| D-07 | ✅ | Auto-scroll + floating "Jump to bottom" button on scroll up |
+| D-08 | ✅ | JSON export downloads structured line data |
+| D-09 | ✅ | Call list filters by severity (All/Critical/High/Medium/Low) |
+| D-10 | ✅ | Play button + progress bar removed |
+| D-11 | ✅ | Resolved calls fetch full_transcript via API; adaptive JSON/plain-text parsing |
+| WR-01 | ✅ | Severity narrowed to 4 literals + null |
+| WR-02 | ✅ | Prefetch merges WS + HTTP state without data loss |
+| WR-03 | ✅ | "Pin to Map" navigates; "Export Log" downloads |
+| WR-06 | ✅ | Composite keys in transcript lines |
+| WR-08 | ✅ | formatTimeAgo centralized; 3 duplicates removed |
+
+## Phase Gate
+
+- ✅ `npx tsc -b --noEmit` — clean
+- ✅ `npx vitest run` — 22/22 tests passing (5 test files)
+- ✅ `npx vite build` — successful
+- ✅ 13 commits across 3 sub-plans
 
 ## Pending Todos
 
 - `.planning/` is gitignored — use `git add -f` to commit planning changes
 - `docs/` directory is empty
 - No lint/typecheck scripts configured yet
-- No tests written yet
 - Phase 2 remaining tasks require Bolna dashboard UI access (upload custom function, set webhook, E2E test)
-
-## Blockers/Concerns
-
-None carried forward.
 
 ## Session Continuity
 
-**Last session:** 2026-07-11T14:49:19.054Z
-**Resumed:** 2026-07-11 — Phase 4 (Dashboard Views) — sub-plan A (bug fixes) completed
-**Stopped at:** Completed 4-C-PLAN.md (Transcription + Polish)
-**Next:** Remaining Phase 4 waves — Leaflet MiniMap, transcription UX, full_transcript fetch, map enhancements
-**Resume file:** None
-
-## Performance Metrics
-
-| Phase | Plan | Duration | Notes |
-|-------|------|----------|-------|
-| Phase 4 PC | 9 | 5 tasks | 12 files |
+**Last session:** 2026-07-11T20:21:00.000Z
+**Phase 4 complete:** All 3 sub-plans executed, 13 commits, 22 tests, all gates pass
+**Next:** Phase 5 — Polish (loading/empty/error states, responsive layout, WS reconnect polish, animations)
