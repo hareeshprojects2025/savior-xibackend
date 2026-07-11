@@ -75,10 +75,13 @@ Add emergency status lifecycle, transcript ingestion, WebSocket broadcasting, an
 
 **Sub-plans:**
 - [x] A — Critical bug fixes (CR-01, CR-02, CR-04, WR-05) ✅
-- [ ] B — Map enhancements, MiniMap, transcription UX, full_transcript fetch (remaining waves)
+- [x] B — Map enhancements + MiniMap ✅
+- [x] C — Transcription + polish (D-07 through D-11, WR fixes, vitest) ✅
 
 **Plans:**
-- [x] 04-01-PLAN.md — Wave 1 (bug fixes) complete; waves 2-6 remaining
+- [x] 04-01-PLAN.md — Wave 1 (bug fixes) complete ✅
+- [x] B-SUMMARY.md — Map enhancements complete ✅
+- [x] C-SUMMARY.md — Transcription + polish complete ✅
 
 ---
 
