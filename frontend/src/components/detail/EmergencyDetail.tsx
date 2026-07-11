@@ -63,7 +63,7 @@ export function EmergencyDetail({ emergency, onStatusChange, onDelete, transcrip
   const handleStatusChange = async (status: EmergencyStatus) => {
     if (!onStatusChange) return
     setStatusLoading(true)
-    try { await onStatusChange(emergency.id, status) } finally { setStatusLoading(false) }
+    try { await onStatusChange(emergency.id, status) } finally { setStatusLoading(false); setPendingStatus(null) }
   }
 
   const handleDelete = async () => {
