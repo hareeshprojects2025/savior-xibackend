@@ -20,6 +20,7 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
   const wsRef = useRef<WebSocket | null>(null)
   const retriesRef = useRef(0)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isRetryingRef = useRef(false)
 
   const connect = useCallback(() => {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:"
@@ -36,7 +37,8 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
 
     ws.onclose = () => {
       setConnected(false)
-      scheduleReconnect()
+      if (!isRetryingRef.current) { scheduleReconnect() }
+      isRetryingRef.current = false
     }
 
     ws.onerror = () => {
@@ -94,8 +96,8 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
           case "transcript_complete":
             break
         }
-      } catch {
-        // ignore malformed messages
+      } catch (err) {
+        console.warn("Failed to parse WebSocket message:", err, (event as MessageEvent).data)
       }
     }
   }, [options])
@@ -120,6 +122,7 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
 
   const retry = useCallback(() => {
     retriesRef.current = 0
+    isRetryingRef.current = true
     wsRef.current?.close()
     connect()
   }, [connect])
