@@ -1,42 +1,38 @@
 {
   "version": "1.0",
-  "timestamp": "2026-07-08T20:10:08.826Z",
-  "phase": 3,
-  "phase_name": "Frontend Scaffold + Dashboard Views",
-  "phase_dir": "none (frontend/ directory; no active phase dir)",
+  "timestamp": "2026-07-09T20:30:00+05:30",
+  "phase": "3",
+  "phase_name": "frontend-dashboard",
+  "phase_dir": "",
   "plan": 1,
-  "task": 5,
-  "total_tasks": 6,
+  "task": 7,
+  "total_tasks": 7,
   "status": "paused",
   "completed_tasks": [
-    {"id": 1, "name": "Backend chunk buffering by call_id", "status": "done"},
-    {"id": 2, "name": "Backend flush buffered chunks on transcript/complete", "status": "done"},
-    {"id": 3, "name": "Backend broadcast new_emergency on completion + report", "status": "done"},
-    {"id": 4, "name": "Frontend speaker field from WS message", "status": "done"},
-    {"id": 5, "name": "TranscriptionPage wired to live WebSocket data", "status": "done"},
-    {"id": 6, "name": "FeedPage expand to full width", "status": "done"},
-    {"id": 7, "name": "Fixed CSS @import warning (Google Fonts via <link>)", "status": "done"}
+    {"id": 1, "name": "Typography overhaul — Inter → Geist + Geist Mono, bumped base 14px→16px, cockpit-number utility", "status": "done", "commit": "93cb175"},
+    {"id": 2, "name": "Row component alignment — stacked label-above-value layout for eye-scan", "status": "done", "commit": "93cb175"},
+    {"id": 3, "name": "Stats page rewrite — enriched backend (by_status, by_type, by_hour), 4 stat cards + 4 charts", "status": "done", "commit": "2dc0175"},
+    {"id": 4, "name": "Hourly volume bar chart — replaced fake line chart with real EXTRACT(hour) backend query", "status": "done", "commit": "2dc0175"},
+    {"id": 5, "name": "EmergencyCard dark grid — bg-gray-900 for Caller/Victim + Status section", "status": "done", "commit": "93cb175"},
+    {"id": 6, "name": "README update with frontend overview + design system section", "status": "done", "commit": "2dc0175"},
+    {"id": 7, "name": "Taste-skill installed from Leonxlnx/taste-skill", "status": "done", "commit": "93cb175"}
   ],
   "remaining_tasks": [
-    {"id": 1, "name": "Phase 2 — Bolna Agent Configuration", "status": "not_started"},
-    {"id": 2, "name": "Phase 5 — Polish (loading/empty/error states, responsive)", "status": "not_started"},
-    {"id": 3, "name": "Phase 6 — Testing & Documentation", "status": "not_started"}
+    {"id": 8, "name": "Push to GitHub: git push origin milestone-1", "status": "not_started"},
+    {"id": 9, "name": "Start Phase 4 — WebSocket integration, map markers, E2E verification", "status": "not_started"}
   ],
   "blockers": [],
   "async_jobs": [],
-  "human_actions_pending": [],
+  "human_actions_pending": [
+    {"action": "git push origin milestone-1", "context": "Branch is 3 commits ahead of origin/milestone-1", "blocking": false}
+  ],
   "decisions": [
-    {"decision": "Chunk buffering by call_id instead of emergency_id", "rationale": "Bolna sends chunks during live call without emergency_id; emergency is only created after transcript/complete webhook matches by caller_phone", "phase": 3},
-    {"decision": "Navigate to /transcriptions from sidebar", "rationale": "Separate page for terminal-style live transcript viewer, distinct from feed card detail panel", "phase": 3},
-    {"decision": "Google Fonts via <link> in index.html instead of CSS @import", "rationale": "Tailwind v4 requires @import to be first; @import after @tailwind/theme causes build warning", "phase": 3}
+    {"decision": "Geist + Geist Mono replaces Inter", "rationale": "Inter is an 'AI tell' per taste-skill; Geist is the recommended replacement for technical/cockpit UIs", "phase": "3"},
+    {"decision": "Stacked label-above-value layout for Row component", "rationale": "Inline label+value on same line was hard to track; stacked creates clean left edge for vertical scan", "phase": "3"},
+    {"decision": "Hourly bar chart replaces fake line chart", "rationale": "Fake response-time data was misleading. Real hourly volume from backend EXTRACT(hour) query provides actual insight", "phase": "3"},
+    {"decision": "Stats page designed as cockpit dashboard", "rationale": "Emergency dispatch == command center. Dark tooltips, mono numbers, trend indicators, dense information layout", "phase": "3"}
   ],
-  "uncommitted_files": [
-    "backend/app/api/v1/endpoints/emergency.py",
-    "backend/app/api/v1/endpoints/transcript.py",
-    "backend/app/schemas/emergency.py",
-    "backend/app/services/transcript_service.py",
-    "frontend/ (entire project — ~45 files)"
-  ],
-  "next_action": "Start the backend dev server (cd backend; uvicorn app.main:app --reload) and frontend dev server (cd frontend; npm run dev) to verify the chunk buffering flow end-to-end with a test call",
-  "context_notes": "Frontend Phase 3+4 are essentially done — scaffold, all views, WebSocket hook, transcription page, emergency card redesign. Backend has chunk buffering wired. Need to start backend+frontend, place a test call, verify transcription appears live. Then move to Phase 5 (polish) and Phase 2 (Bolna config). The frontend/ directory is entirely untracked — will need git add on resume."
+  "uncommitted_files": [],
+  "next_action": "git push origin milestone-1",
+  "context_notes": "Phase 3 frontend work is complete and committed. No active phase directory exists in .planning/phases/ — the frontend work was executed ad-hoc. Phase 2 (bolna-agent) was never started. The repository is ready for GitHub push and Phase 4 planning."
 }
