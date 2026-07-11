@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react"
+import { useRef, useEffect, useState, useCallback } from "react"
 import { MessageSquare, ArrowDown } from "lucide-react"
 
 interface TranscriptLine {
@@ -14,11 +14,29 @@ interface LiveTranscriptProps {
 
 export function LiveTranscript({ lines, active }: LiveTranscriptProps) {
   const [autoScroll, setAutoScroll] = useState(true)
+  const [showJumpToBottom, setShowJumpToBottom] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (autoScroll) bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [lines, autoScroll])
+
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current
+    if (!el) return
+    const dist = el.scrollHeight - el.scrollTop - el.clientHeight
+    if (dist > 100) {
+      setAutoScroll(false)
+      setShowJumpToBottom(true)
+    }
+  }, [])
+
+  const jumpToBottom = () => {
+    setAutoScroll(true)
+    setShowJumpToBottom(false)
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
 
   if (!active) {
     return (
@@ -42,7 +60,7 @@ export function LiveTranscript({ lines, active }: LiveTranscriptProps) {
   }
 
   return (
-    <div>
+    <div className="relative">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="relative flex size-2">
@@ -52,20 +70,27 @@ export function LiveTranscript({ lines, active }: LiveTranscriptProps) {
           <span className="text-sm font-bold text-green-600">LIVE</span>
           <span className="text-sm font-medium text-gray-400">Transcript</span>
         </div>
-        <button type="button" onClick={() => setAutoScroll(!autoScroll)}
-          className={`flex items-center gap-1 text-sm font-semibold transition-colors ${autoScroll ? "text-blue-500" : "text-gray-400"}`}>
-          <ArrowDown className="size-4" /> Auto-scroll
-        </button>
       </div>
 
-      <div className="space-y-2 max-h-48 overflow-y-auto rounded-xl bg-gray-50 p-4 border border-gray-200">
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="space-y-2 max-h-48 overflow-y-auto rounded-xl bg-gray-50 p-4 border border-gray-200"
+      >
         {lines.map((line, i) => (
-          <div key={i} className={`text-base leading-relaxed ${line.speaker === "AI" ? "text-blue-600" : "text-gray-700"}`}>
+          <div key={`${line.timestamp}-${i}`} className={`text-base leading-relaxed ${line.speaker === "AI" ? "text-blue-600" : "text-gray-700"}`}>
             <span className="font-bold">{line.speaker}: </span>{line.text}
           </div>
         ))}
         <div ref={bottomRef} />
       </div>
+
+      {showJumpToBottom && (
+        <button onClick={jumpToBottom}
+          className="absolute bottom-2 right-2 px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg shadow-lg hover:bg-blue-700 transition-all">
+          <ArrowDown className="size-3.5 inline-block mr-1" /> Jump to bottom
+        </button>
+      )}
     </div>
   )
 }
