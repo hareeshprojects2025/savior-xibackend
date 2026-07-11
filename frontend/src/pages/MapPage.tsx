@@ -15,7 +15,7 @@ export function MapPage() {
   const selectedId = selectedIdParam ? (isNaN(Number(selectedIdParam)) ? null : Number(selectedIdParam)) : null
 
   const [radiusMode, setRadiusMode] = useState(false)
-  const [radiusKm, setRadiusKm] = useState(5)
+  const radiusKm = 5
   const [radiusCenter, setRadiusCenter] = useState<[number, number] | null>(null)
 
   const filteredEmergencies = emergencies.filter((e) => selectedStatuses.includes(e.status))
