@@ -15,6 +15,8 @@ export interface Emergency {
   description: string | null
   immediate_danger: string | null
   summary: string | null
+  latitude: number | null
+  longitude: number | null
   status: EmergencyStatus
   full_transcript: string | null
   created_at: string
@@ -30,6 +32,8 @@ export interface EmergencySummary {
   victims: number | null
   status: EmergencyStatus
   created_at: string
+  latitude: number | null
+  longitude: number | null
 }
 
 export interface EmergencyStats {
@@ -43,7 +47,7 @@ export interface EmergencyStats {
 }
 
 export interface WsMessage {
-  type: "new_emergency" | "status_update" | "transcript_chunk" | "transcript_complete"
+  type: "new_emergency" | "status_update" | "transcript_chunk" | "transcript_complete" | "emergency_deleted"
   emergency_id?: number
   status?: EmergencyStatus
   chunk_text?: string

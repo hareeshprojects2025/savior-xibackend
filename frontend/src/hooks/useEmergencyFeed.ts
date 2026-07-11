@@ -81,6 +81,16 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
             }
             break
 
+          case "emergency_deleted":
+            if (msg.emergency_id) {
+              setEmergencies((prev) => prev.filter((e) => e.id !== msg.emergency_id))
+              setTranscripts((prev) => {
+                const { [msg.emergency_id!]: _, ...rest } = prev
+                return rest
+              })
+            }
+            break
+
           case "transcript_complete":
             break
         }

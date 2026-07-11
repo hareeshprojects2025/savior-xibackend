@@ -120,9 +120,13 @@ async def update_emergency_status(
 
 
 @router.delete("/emergencies/{emergency_id}", response_model=EmergencyResponse)
-def remove_emergency(emergency_id: int, db: Session = Depends(get_db)):
+async def remove_emergency(emergency_id: int, db: Session = Depends(get_db)):
     if not delete_emergency(db, emergency_id):
         raise HTTPException(status_code=404, detail="Emergency not found")
+    await manager.broadcast({
+        "type": "emergency_deleted",
+        "emergency_id": emergency_id,
+    })
     return {
         "status": "success",
         "message": "Emergency deleted successfully."
