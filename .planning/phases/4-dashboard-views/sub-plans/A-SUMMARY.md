@@ -90,6 +90,17 @@ None — plan executed exactly as written.
 - Empty catch now provides debugging info (WR-05).
 - Ready for remaining Phase 4 waves: map enhancements, MiniMap, transcription UX, full_transcript fetch.
 
+## Self-Check: PASSED
+
+- [x] SUMMARY.md exists on disk
+- [x] 5 commits created for sub-plan A
+- [x] Task 1.1 commit: `9958dab` (setPendingStatus in finally block)
+- [x] Task 1.2 commit: `55d8f24` (emergency_deleted broadcast + frontend handler)
+- [x] Task 1.3 commit: `6180359` (isRetryingRef + catch logging)
+- [x] Metadata commits: `821c357` (summary), `76bb37b` (STATE/ROADMAP)
+- [x] No TypeScript errors (`npx tsc -b --noEmit`)
+- [x] Backend Python syntax valid
+
 ---
 
 *Phase: 4-dashboard-views*
