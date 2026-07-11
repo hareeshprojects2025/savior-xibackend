@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Download, ArrowRight, Filter, User, MapPin, Phone, Terminal } from "lucide-react"
 import { useEmergencyFeedContext } from "@/hooks/EmergencyFeedContext"
 import { formatTimeAgo } from "@/lib/utils"
@@ -77,6 +77,26 @@ function TranscriptLine({ line }: { line: Line }) {
   )
 }
 
+function parseFullTranscript(raw: string, fallbackTimestamp: string): Line[] {
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].speaker !== undefined) {
+      return parsed.map((s: any) => ({
+        speaker: s.speaker || "Unknown",
+        text: s.text || s.content || "",
+        timestamp: s.timestamp || fallbackTimestamp,
+      }))
+    }
+  } catch {
+    // Not JSON — fall through to plain text parsing
+  }
+  return raw.split("\n").filter((l: string) => l.trim()).map((line: string) => {
+    const speaker = /^(AI:|Agent:)/i.test(line) ? "AI" : "Caller"
+    const text = line.replace(/^(AI:|Agent:|Caller:)\s*/i, "")
+    return { speaker, text, timestamp: fallbackTimestamp }
+  })
+}
+
 function exportTranscript(lines: Line[], emergencyId: number) {
   if (lines.length === 0) return
   const blob = new Blob([JSON.stringify(lines, null, 2)], { type: "application/json" })
@@ -96,8 +116,29 @@ export function TranscriptionPage() {
   const [severityFilter, setSeverityFilter] = useState<string | null>(null)
   const [showFilterDropdown, setShowFilterDropdown] = useState(false)
 
+  const [fullTranscriptLines, setFullTranscriptLines] = useState<Line[]>([])
+
   const selected = emergencies.find((e) => e.id === selectedId) || null
   const selectedLines = selectedId ? (transcripts[selectedId] || []) : []
+  const displayLines = selected?.status === "resolved" && fullTranscriptLines.length > 0
+    ? fullTranscriptLines
+    : selectedLines
+
+  useEffect(() => {
+    if (selected?.status === "resolved") {
+      fetch(`/api/emergencies/${selected.id}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.full_transcript) {
+            const lines: Line[] = parseFullTranscript(data.full_transcript, selected.created_at)
+            setFullTranscriptLines(lines)
+          }
+        })
+        .catch(() => {})
+    } else {
+      setFullTranscriptLines([])
+    }
+  }, [selected])
 
   const sorted = [...emergencies].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -190,8 +231,8 @@ export function TranscriptionPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="cockpit-number text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded-lg border border-gray-200">{selectedLines.length} lines</span>
-                  <button onClick={() => exportTranscript(selectedLines, selected.id)} className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-1.5">
+                  <span className="cockpit-number text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded-lg border border-gray-200">{displayLines.length} lines</span>
+                  <button onClick={() => exportTranscript(displayLines, selected.id)} className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-1.5">
                     <Download className="size-4" /> Export
                   </button>
                   <button className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-1.5">
@@ -222,13 +263,15 @@ export function TranscriptionPage() {
               <div className="flex-1 overflow-y-auto p-6 space-y-3 font-mono text-sm leading-relaxed bg-gray-900"
                 style={{ scrollbarWidth: "thin", scrollbarColor: "#4B5563 transparent" }}
               >
-                {selectedLines.length === 0 && (
-                  <p className="text-gray-500 text-center py-8">Waiting for transcription...</p>
+                {displayLines.length === 0 && (
+                  <p className="text-gray-500 text-center py-8">
+                    {selected.status === "resolved" ? "No transcript available" : "Waiting for transcription..."}
+                  </p>
                 )}
-                {selectedLines.map((line, i) => (
+                {displayLines.map((line, i) => (
                   <TranscriptLine key={`${line.timestamp}-${i}`} line={line} />
                 ))}
-                {selectedLines.length > 0 && selected.status !== "resolved" && (
+                {displayLines.length > 0 && selected.status !== "resolved" && (
                   <div className="flex gap-4 items-start mt-4">
                     <span className="text-gray-500 w-12 shrink-0 pt-0.5">--:--</span>
                     <div className="w-2 h-4 bg-blue-300 animate-pulse" />
