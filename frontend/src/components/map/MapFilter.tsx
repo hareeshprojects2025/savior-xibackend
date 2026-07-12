@@ -18,7 +18,7 @@ const STATUS_COLORS: Record<EmergencyStatus, string> = {
 }
 
 const SEVERITY_DOT_COLORS: Record<string, string> = {
-  Critical: "bg-red-500", High: "bg-orange-400", Medium: "bg-yellow-400", Low: "bg-gray-400",
+  Critical: "bg-red-500", High: "bg-orange-500", Medium: "bg-teal-500", Low: "bg-violet-500",
 }
 
 function StatusSymbol({ status }: { status: string }) {

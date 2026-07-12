@@ -11,10 +11,10 @@ const MUMBAI_CENTER: LatLngExpression = [19.0760, 72.8777]
 const DEFAULT_ZOOM = 11
 
 const SEVERITY_MARKER_COLORS: Record<string, string> = {
-  Critical: "#DC2626",
-  High: "#F59E0B",
-  Medium: "#FBBF24",
-  Low: "#9CA3AF",
+  Critical: "#EF4444",
+  High: "#F97316",
+  Medium: "#14B8A6",
+  Low: "#8B5CF6",
 }
 
 const DEFAULT_COLOR = "#6B7280"
@@ -75,7 +75,7 @@ function EmergencyPopup({ emergency, onViewDetails }: { emergency: Emergency; on
       <p className="font-bold text-gray-900 mb-1">{emergency.emergency_type}</p>
       <p className="text-gray-600 mb-1">{emergency.location}</p>
       <div className="flex items-center gap-2 mb-1">
-        <span className={`inline-block size-2 rounded-full ${emergency.severity === "Critical" ? "bg-red-500" : emergency.severity === "High" ? "bg-orange-400" : emergency.severity === "Medium" ? "bg-yellow-400" : "bg-gray-400"}`} />
+        <span className={`inline-block size-2 rounded-full ${emergency.severity === "Critical" ? "bg-red-500" : emergency.severity === "High" ? "bg-orange-500" : emergency.severity === "Medium" ? "bg-teal-500" : "bg-violet-500"}`} />
         <span className="font-medium text-gray-700">{emergency.severity}</span>
         <span className="text-gray-300">|</span>
         <span className="font-medium text-gray-700 capitalize">{emergency.status.replace("_", " ")}</span>
