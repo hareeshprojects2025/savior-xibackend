@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet"
 import { divIcon, type LatLngExpression } from "leaflet"
 import "leaflet/dist/leaflet.css"
@@ -19,11 +19,19 @@ const SEVERITY_MARKER_COLORS: Record<string, string> = {
 
 const DEFAULT_COLOR = "#6B7280"
 
-function createSeverityIcon(severity: string | null, selected?: boolean) {
+const STATUS_INNER_ICONS: Record<string, string> = {
+  pending: `<path d="M18 13v10M13 18h10" stroke="white" stroke-width="2.5" stroke-linecap="round"/>`,
+  dispatched: `<path d="M18 12l-5 8h10z" fill="white"/>`,
+  en_route: `<path d="M14 22l4-16 4 16-4-6z" stroke="white" stroke-width="2" stroke-linejoin="round" fill="none"/>`,
+  resolved: `<path d="M13 18l4 4 6-8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
+}
+
+function createEmergencyIcon(severity: string | null, status: string, selected?: boolean) {
   const color = severity ? SEVERITY_MARKER_COLORS[severity] || DEFAULT_COLOR : DEFAULT_COLOR
   const strokeColor = selected ? "#2563EB" : "white"
   const strokeWidth = selected ? 3 : 2
-  const svg = `<svg width="36" height="48" viewBox="0 0 36 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 30 18 30s18-16.5 18-30C36 8.06 27.94 0 18 0z" fill="${color}" stroke="${strokeColor}" stroke-width="${strokeWidth}"/><circle cx="18" cy="18" r="8" fill="white" opacity="0.9"/><circle cx="18" cy="18" r="4" fill="${color}" opacity="0.7"/></svg>`
+  const inner = (STATUS_INNER_ICONS[status] || STATUS_INNER_ICONS.pending).replace(/stroke="white"/g, `stroke="${color}"`)
+  const svg = `<svg width="36" height="48" viewBox="0 0 36 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 30 18 30s18-16.5 18-30C36 8.06 27.94 0 18 0z" fill="${color}" stroke="${strokeColor}" stroke-width="${strokeWidth}"/><circle cx="18" cy="18" r="9" fill="white" opacity="0.95"/>${inner}</svg>`
   return divIcon({
     html: svg,
     className: `emergency-marker${selected ? " selected-marker" : ""}`,
@@ -100,10 +108,6 @@ export function EmergencyMap({ emergencies, error, onRetry, onMarkerClick, selec
 
   const noCoords = emergencies.filter((e) => e.latitude == null || e.longitude == null)
 
-  const handleMarkerClick = useCallback((id: number) => {
-    onMarkerClick?.(id)
-  }, [onMarkerClick])
-
   if (error) {
     return <div className="h-full flex items-center justify-center"><ErrorState title="Failed to load map" description={error} onRetry={onRetry} /></div>
   }
@@ -128,11 +132,10 @@ export function EmergencyMap({ emergencies, error, onRetry, onMarkerClick, selec
           <Marker
             key={emergency.id}
             position={coords}
-            icon={createSeverityIcon(emergency.severity, emergency.id === selectedId)}
-            eventHandlers={{ click: () => handleMarkerClick(emergency.id) }}
+            icon={createEmergencyIcon(emergency.severity, emergency.status, emergency.id === selectedId)}
           >
             <Popup>
-              <EmergencyPopup emergency={emergency} onViewDetails={() => handleMarkerClick(emergency.id)} />
+              <EmergencyPopup emergency={emergency} onViewDetails={() => onMarkerClick?.(emergency.id)} />
             </Popup>
           </Marker>
         ))}

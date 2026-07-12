@@ -3,25 +3,30 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import { EmergencyMap } from "@/components/map/EmergencyMap"
 import { MapFilter, MapLegend } from "@/components/map/MapFilter"
 import { useEmergencyFeedContext } from "@/hooks/EmergencyFeedContext"
-import type { EmergencyStatus } from "@/lib/types"
+import type { EmergencyStatus, Severity } from "@/lib/types"
 
 
 export function MapPage() {
   const [selectedStatuses, setSelectedStatuses] = useState<EmergencyStatus[]>(["pending", "dispatched", "en_route"])
+  const [selectedSeverities, setSelectedSeverities] = useState<Severity[]>(["Critical", "High", "Medium", "Low"])
   const { emergencies, connected, loading, error, retry } = useEmergencyFeedContext()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const selectedIdParam = searchParams.get("selected")
   const selectedId = selectedIdParam ? (isNaN(Number(selectedIdParam)) ? null : Number(selectedIdParam)) : null
 
-  const displayedEmergencies = selectedStatuses.length === 0 ? emergencies : emergencies.filter((e) => selectedStatuses.includes(e.status))
+  const displayedEmergencies = emergencies.filter((e) => {
+    if (selectedStatuses.length > 0 && !selectedStatuses.includes(e.status)) return false
+    if (selectedSeverities.length > 0 && !selectedSeverities.includes(e.severity)) return false
+    return true
+  })
 
   const handleStatusToggle = (status: EmergencyStatus) => {
     setSelectedStatuses((prev) => prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status])
   }
 
-  const handleMarkerClick = (id: number) => {
-    navigate("/?selected=" + id)
+  const handleSeverityToggle = (severity: Severity) => {
+    setSelectedSeverities((prev) => prev.includes(severity) ? prev.filter((s) => s !== severity) : [...prev, severity])
   }
 
   if (loading && emergencies.length === 0) {
@@ -65,7 +70,7 @@ export function MapPage() {
             emergencies={displayedEmergencies}
             error={error}
             onRetry={retry}
-            onMarkerClick={handleMarkerClick}
+            onMarkerClick={(id) => navigate("/?selected=" + id)}
             selectedId={selectedId}
           />
         </div>
@@ -74,7 +79,12 @@ export function MapPage() {
             <MapLegend />
           </div>
           <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <MapFilter selectedStatuses={selectedStatuses} onStatusToggle={handleStatusToggle} />
+            <MapFilter
+              selectedStatuses={selectedStatuses}
+              onStatusToggle={handleStatusToggle}
+              selectedSeverities={selectedSeverities}
+              onSeverityToggle={handleSeverityToggle}
+            />
           </div>
         </div>
       </div>
