@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import type { Emergency, WsMessage } from "@/lib/types"
+import type { Emergency, WsMessage, ActiveSession } from "@/lib/types"
 
 export interface TranscriptLine {
   speaker: "AI" | "Caller"
@@ -17,6 +17,7 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
   const [connected, setConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [transcripts, setTranscripts] = useState<Record<number, TranscriptLine[]>>({})
+  const [activeSessions, setActiveSessions] = useState<Record<string, ActiveSession>>({})
   const wsRef = useRef<WebSocket | null>(null)
   const retriesRef = useRef(0)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -101,6 +102,51 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
 
           case "transcript_complete":
             break
+
+          case "live_transcript":
+            if (msg.session_id && msg.transcript_text) {
+              setActiveSessions((prev) => ({
+                ...prev,
+                [msg.session_id!]: {
+                  session_id: msg.session_id,
+                  transcript_text: msg.transcript_text,
+                  speaker: msg.speaker || "caller",
+                  emergency_type: msg.emergency_type_detected || "",
+                  updated_at: Date.now(),
+                },
+              }))
+            }
+            break
+
+          case "transcript_resolved":
+            setActiveSessions((prev) => {
+              const next = { ...prev }
+              for (const [sid, sess] of Object.entries(next)) {
+                if (msg.full_transcript && msg.full_transcript.startsWith(sess.transcript_text)) {
+                  delete next[sid]
+                }
+              }
+              return next
+            })
+            if (msg.emergency_id && msg.full_transcript) {
+              const lines: TranscriptLine[] = msg.full_transcript.split("\n").filter(Boolean).map((line: string) => ({
+                speaker: (/^(AI:|Agent:)/i.test(line) ? "AI" as const : "Caller" as const),
+                text: line.replace(/^(AI:|Agent:|Caller:)\s*/i, ""),
+                timestamp: new Date().toISOString(),
+              }))
+              setTranscripts((prev) => ({
+                ...prev,
+                [msg.emergency_id!]: lines,
+              }))
+              setEmergencies((prev) =>
+                prev.map((e) =>
+                  e.id === msg.emergency_id
+                    ? { ...e, summary: msg.summary || e.summary, full_transcript: msg.full_transcript || e.full_transcript }
+                    : e
+                )
+              )
+            }
+            break
         }
       } catch (err) {
         console.warn("Failed to parse WebSocket message:", err, (event as MessageEvent).data)
@@ -150,5 +196,5 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
     }
   }, [])
 
-  return { emergencies, connected, error, retry, prefetch, transcripts, setTranscripts }
+  return { emergencies, connected, error, retry, prefetch, transcripts, setTranscripts, activeSessions }
 }

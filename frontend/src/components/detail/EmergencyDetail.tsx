@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { StatusActions } from "./StatusActions"
 import { StatusTimeline } from "./StatusTimeline"
-import { LiveTranscript } from "./LiveTranscript"
+
 import { MiniMap } from "./MiniMap"
 import { ConfirmDialog } from "./ConfirmDialog"
 import type { Emergency, EmergencyStatus } from "@/lib/types"
@@ -138,16 +138,16 @@ export function EmergencyDetail({ emergency, onStatusChange, onDelete, transcrip
         </>
       )}
 
-      <Separator className="bg-gray-200" />
-      {emergency.full_transcript ? (
-        <div>
-          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Transcript</h4>
-          <div className="rounded-xl bg-gray-50 border border-gray-200 p-4 max-h-64 overflow-y-auto">
-            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{emergency.full_transcript}</p>
+      {emergency.full_transcript && (
+        <>
+          <Separator className="bg-gray-200" />
+          <div>
+            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Transcript</h4>
+            <div className="rounded-xl bg-gray-50 border border-gray-200 p-4 max-h-64 overflow-y-auto">
+              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{emergency.full_transcript}</p>
+            </div>
           </div>
-        </div>
-      ) : (
-        <LiveTranscript lines={transcriptLines || []} active={!!(transcriptLines && transcriptLines.length > 0)} />
+        </>
       )}
 
       <Separator className="bg-gray-200" />

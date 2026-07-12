@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.requests import ClientDisconnect
@@ -14,6 +15,9 @@ from app.services.emergency_service import get_emergency
 
 logger = logging.getLogger("savior.transcript")
 router = APIRouter(tags=["Transcript"])
+
+_active_sessions: dict[str, dict] = {}
+_session_counter = 0
 
 
 @router.post("/transcript/chunk")
@@ -61,8 +65,43 @@ async def receive_chunk(request: Request, db: Session = Depends(get_db)):
         buffer_chunk(bolna_call_id, transcript_text, body.get("is_final", False), speaker)
         return {"status": "buffered", "message": f"Chunk buffered for call_id={bolna_call_id}"}
 
-    logger.warning("Chunk received without emergency_id or call_id")
-    return {"status": "acknowledged"}
+    global _session_counter, _active_sessions
+    prev_text = transcript_text
+    prev_len = len(prev_text) if prev_text else 0
+
+    existing = [
+        k for k, v in _active_sessions.items()
+        if prev_len >= len(v.get("transcript_text", ""))
+        and prev_text.startswith(v.get("transcript_text", ""))
+    ]
+
+    if existing:
+        session_id = existing[0]
+        _active_sessions[session_id].update({
+            "transcript_text": transcript_text,
+            "speaker": speaker,
+            "emergency_type": body.get("emergency_type_detected", _active_sessions[session_id].get("emergency_type", "")),
+            "updated_at": time.time(),
+        })
+    else:
+        _session_counter += 1
+        session_id = f"live-{_session_counter}"
+        _active_sessions[session_id] = {
+            "transcript_text": transcript_text,
+            "speaker": speaker,
+            "emergency_type": body.get("emergency_type_detected", ""),
+            "updated_at": time.time(),
+        }
+
+    await manager.broadcast({
+        "type": "live_transcript",
+        "session_id": session_id,
+        "transcript_text": transcript_text,
+        "speaker": speaker,
+        "emergency_type_detected": _active_sessions[session_id]["emergency_type"],
+    })
+    logger.info("Live session %s: %d chars", session_id, len(transcript_text))
+    return {"status": "live", "session_id": session_id}
 
 
 @router.post("/transcript/complete")
@@ -105,6 +144,21 @@ async def receive_complete(request: Request, db: Session = Depends(get_db)):
             db.commit()
             db.refresh(record)
 
+            lines = [l.strip() for l in transcript_text.split("\n") if l.strip()]
+            for line in lines:
+                chunk = store_chunk(db, TranscriptChunkCreate(
+                    emergency_id=record.id,
+                    chunk_text=line,
+                    is_final=True,
+                ))
+                await manager.broadcast({
+                    "type": "transcript_chunk",
+                    "emergency_id": record.id,
+                    "chunk_text": line,
+                    "speaker": "AI" if line.startswith(("AI:", "Agent:")) else "Caller",
+                    "is_final": True,
+                })
+
             if bolna_call_id:
                 buffered = flush_buffer(bolna_call_id, record.id, db)
                 if buffered:
@@ -120,6 +174,12 @@ async def receive_complete(request: Request, db: Session = Depends(get_db)):
             await manager.broadcast({
                 "type": "transcript_complete",
                 "emergency_id": record.id,
+            })
+            await manager.broadcast({
+                "type": "transcript_resolved",
+                "emergency_id": record.id,
+                "full_transcript": transcript_text,
+                "summary": summary_text or "",
             })
             await manager.broadcast({
                 "type": "new_emergency",

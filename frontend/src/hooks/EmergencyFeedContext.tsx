@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, type ReactNode } from "react"
 import { useEmergencyFeed } from "./useEmergencyFeed"
-import type { Emergency } from "@/lib/types"
+import type { Emergency, ActiveSession } from "@/lib/types"
 
 interface TranscriptLine {
   speaker: "AI" | "Caller"
@@ -14,19 +14,20 @@ interface EmergencyFeedContextValue {
   error: string | null
   retry: () => void
   transcripts: Record<number, TranscriptLine[]>
+  activeSessions: Record<string, ActiveSession>
 }
 
 const EmergencyFeedContext = createContext<EmergencyFeedContextValue | null>(null)
 
 export function EmergencyFeedProvider({ children }: { children: ReactNode }) {
-  const { emergencies, connected, error, retry, prefetch, transcripts } = useEmergencyFeed()
+  const { emergencies, connected, error, retry, prefetch, transcripts, activeSessions } = useEmergencyFeed()
 
   useEffect(() => {
     prefetch()
   }, [prefetch])
 
   return (
-    <EmergencyFeedContext.Provider value={{ emergencies, connected, error, retry, transcripts }}>
+    <EmergencyFeedContext.Provider value={{ emergencies, connected, error, retry, transcripts, activeSessions }}>
       {children}
     </EmergencyFeedContext.Provider>
   )

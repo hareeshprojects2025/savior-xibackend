@@ -47,13 +47,26 @@ export interface EmergencyStats {
 }
 
 export interface WsMessage {
-  type: "new_emergency" | "status_update" | "transcript_chunk" | "transcript_complete" | "emergency_deleted"
+  type: "new_emergency" | "status_update" | "transcript_chunk" | "transcript_complete" | "transcript_resolved" | "emergency_deleted" | "live_transcript"
   emergency_id?: number
   status?: EmergencyStatus
   chunk_text?: string
   speaker?: string
   is_final?: boolean
   data?: Emergency
+  session_id?: string
+  transcript_text?: string
+  emergency_type_detected?: string
+  full_transcript?: string
+  summary?: string
+}
+
+export interface ActiveSession {
+  session_id: string
+  transcript_text: string
+  speaker: string
+  emergency_type: string
+  updated_at: number
 }
 
 export const STATUS_TRANSITIONS: Record<EmergencyStatus, EmergencyStatus[]> = {

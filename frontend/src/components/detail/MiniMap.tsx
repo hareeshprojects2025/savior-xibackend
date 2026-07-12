@@ -1,6 +1,7 @@
+import { useState, useEffect } from "react"
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet"
 import { divIcon } from "leaflet"
-import { MapPin } from "lucide-react"
+import { MapPin, Loader2 } from "lucide-react"
 import "leaflet/dist/leaflet.css"
 
 interface MiniMapProps {
@@ -17,33 +18,67 @@ const fallbackIcon = divIcon({
 })
 
 export function MiniMap({ location, lat, lng }: MiniMapProps) {
-  if (lat == null || lng == null) {
+  const [coords, setCoords] = useState<[number, number] | null>(
+    lat != null && lng != null ? [lat, lng] : null
+  )
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (lat != null && lng != null) {
+      setCoords([lat, lng])
+      return
+    }
+    if (!location || !location.trim()) return
+    setLoading(true)
+    const params = new URLSearchParams({ q: location, format: "json", limit: "1" })
+    fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+      headers: { "User-Agent": "SAVIOR/1.0" },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && data.length > 0) {
+          setCoords([parseFloat(data[0].lat), parseFloat(data[0].lon)])
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [location, lat, lng])
+
+  if (!coords) {
     return (
       <div className="h-40 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-center">
         <div className="flex flex-col items-center text-gray-400">
-          <MapPin className="size-6 mb-1" />
-          <span className="text-sm font-medium">No location data</span>
+          {loading ? (
+            <Loader2 className="size-6 mb-1 animate-spin" />
+          ) : (
+            <MapPin className="size-6 mb-1" />
+          )}
+          <span className="text-sm font-medium">
+            {loading ? "Looking up location..." : "No location data"}
+          </span>
           <span className="text-xs text-gray-300 mt-0.5">{location}</span>
         </div>
       </div>
     )
   }
 
+  const mapKey = `${coords[0].toFixed(4)}-${coords[1].toFixed(4)}`
+
   return (
-    <div className="h-40 rounded-xl border border-gray-200 overflow-hidden">
+    <div key={mapKey} className="h-40 rounded-xl border border-gray-200 overflow-hidden">
       <MapContainer
-        center={[lat, lng]}
-        zoom={15}
+        center={coords}
+        zoom={14}
         className="h-full w-full"
-        zoomControl={false}
-        dragging={false}
-        scrollWheelZoom={false}
+        zoomControl={true}
+        dragging={true}
+        scrollWheelZoom={true}
         attributionControl={false}
       >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <Marker position={[lat, lng]} icon={fallbackIcon}>
+        <Marker position={coords} icon={fallbackIcon}>
           <Popup>{location}</Popup>
         </Marker>
       </MapContainer>

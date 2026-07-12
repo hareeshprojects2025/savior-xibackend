@@ -10,6 +10,7 @@ import type { EmergencyStatus } from "@/lib/types"
 
 export function FeedPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null)
   const [selectedSeverity, setSelectedSeverity] = useState<string | null>(null)
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest")
 
@@ -20,7 +21,11 @@ export function FeedPage() {
   const handleDelete = useCallback(async (id: number) => { await deleteEmergency(id) }, [deleteEmergency])
 
   const filteredEmergencies = emergencies
-    .filter((e) => !selectedSeverity || e.severity === selectedSeverity)
+    .filter((e) => {
+      if (selectedStatus && e.status !== selectedStatus) return false
+      if (selectedSeverity && e.severity !== selectedSeverity) return false
+      return true
+    })
     .sort((a, b) => {
       const diff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       return sortOrder === "newest" ? diff : -diff
@@ -42,6 +47,8 @@ export function FeedPage() {
         <ConnectionBanner connected={connected} onRetry={retry} />
 
         <FeedFilter
+          selectedStatus={selectedStatus}
+          onStatusChange={setSelectedStatus}
           selectedSeverity={selectedSeverity}
           onSeverityChange={setSelectedSeverity}
           sortOrder={sortOrder}
