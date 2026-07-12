@@ -68,8 +68,11 @@ def list_recent_emergencies(
 
 
 @router.get("/emergencies/stats", response_model=EmergencyStats)
-def list_stats(db: Session = Depends(get_db)):
-    return get_emergency_stats(db)
+def list_stats(
+    days: Optional[int] = Query(None, ge=1, description="Only include emergencies from the last N days"),
+    db: Session = Depends(get_db),
+):
+    return get_emergency_stats(db, days=days)
 
 
 @router.get("/emergencies/type/{emergency_type}", response_model=List[EmergencySummary])

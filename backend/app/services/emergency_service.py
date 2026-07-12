@@ -1,5 +1,5 @@
 import asyncio
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
@@ -89,35 +89,40 @@ def get_mass_casualty_emergencies(db: Session, min_victims: int = 10) -> list[Em
     )
 
 
-def get_emergency_stats(db: Session) -> dict:
-    total = db.query(Emergency).count()
+def get_emergency_stats(db: Session, days: int | None = None) -> dict:
+    q = db.query(Emergency)
+    if days is not None:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        q = q.filter(Emergency.created_at >= cutoff)
+
+    total = q.count()
 
     severity_rows = (
-        db.query(Emergency.severity, func.count(Emergency.id).label("count"))
+        q.with_entities(Emergency.severity, func.count(Emergency.id).label("count"))
         .group_by(Emergency.severity)
         .all()
     )
     by_severity = {row.severity: row.count for row in severity_rows}
 
     status_rows = (
-        db.query(Emergency.status, func.count(Emergency.id).label("count"))
+        q.with_entities(Emergency.status, func.count(Emergency.id).label("count"))
         .group_by(Emergency.status)
         .all()
     )
     by_status = {row.status.value: row.count for row in status_rows}
 
     type_rows = (
-        db.query(Emergency.emergency_type, func.count(Emergency.id).label("count"))
+        q.with_entities(Emergency.emergency_type, func.count(Emergency.id).label("count"))
         .group_by(Emergency.emergency_type)
         .all()
     )
     by_type = {row.emergency_type: row.count for row in type_rows}
 
-    active_count = db.query(Emergency).filter(Emergency.status != EmergencyStatus.resolved).count()
-    resolved_count = db.query(Emergency).filter(Emergency.status == EmergencyStatus.resolved).count()
+    active_count = q.filter(Emergency.status != EmergencyStatus.resolved).count()
+    resolved_count = q.filter(Emergency.status == EmergencyStatus.resolved).count()
 
     hourly_rows = (
-        db.query(
+        q.with_entities(
             extract("hour", Emergency.created_at).label("hour"),
             func.count(Emergency.id).label("count"),
         )

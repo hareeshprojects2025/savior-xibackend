@@ -9,9 +9,11 @@ export function StatsPage() {
   const [period, setPeriod] = useState<"Today" | "Week" | "Month">("Today")
   const { fetchStats, loading, error } = useApi()
 
+  const periodDays: Record<string, number | undefined> = { Today: 1, Week: 7, Month: 30 }
+
   useEffect(() => {
-    fetchStats().then(setStats)
-  }, [fetchStats])
+    fetchStats(periodDays[period]).then(setStats)
+  }, [fetchStats, period])
 
   return (
     <div className="max-w-[1600px] mx-auto">

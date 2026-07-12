@@ -41,11 +41,12 @@ export function useApi() {
     }
   }, [])
 
-  const fetchStats = useCallback(async (): Promise<EmergencyStats | null> => {
+  const fetchStats = useCallback(async (days?: number): Promise<EmergencyStats | null> => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch("/api/emergencies/stats")
+      const url = days ? `/api/emergencies/stats?days=${days}` : "/api/emergencies/stats"
+      const res = await fetch(url)
       if (!res.ok) throw new Error("Failed to fetch stats")
       return await res.json()
     } catch (err) {
