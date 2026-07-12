@@ -2,7 +2,7 @@
 
 **S**ituational **A**nalysis & **V**irtual **I**ntelligent **O**perational **R**outer
 
-Real-time emergency dispatch system. Bolna AI voice agent collects incident reports → FastAPI backend stores them → React dispatcher dashboard provides live monitoring and incident management.
+Real-time emergency dispatch system. Bolna AI voice agent collects incident reports → FastAPI backend stores them → React dispatcher dashboard provides live monitoring, mapping, and incident management.
 
 ## Architecture
 
@@ -70,7 +70,7 @@ cd backend
 ..\thor\Scripts\uvicorn app.main:app --reload
 ```
 
-The API is at `http://localhost:8000/docs` for Swagger docs.
+The API is at `http://localhost:8000/docs` (Swagger UI).
 
 ### 5. Install & run the frontend
 
@@ -84,25 +84,43 @@ The dashboard is at `http://localhost:5173`.
 
 ## API Endpoints
 
+### Emergency CRUD
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/emergency` | Create emergency report |
 | GET | `/api/emergencies` | List all emergencies |
-| GET | `/api/emergencies/recent` | Paginated recent emergencies |
 | GET | `/api/emergencies/{id}` | Get single emergency |
-| PATCH | `/api/emergencies/{id}/status` | Update status |
+| PATCH | `/api/emergencies/{id}/status` | Update status (pending → dispatched → en_route → resolved) |
 | DELETE | `/api/emergencies/{id}` | Delete emergency |
-| GET | `/api/emergencies/stats` | Emergency statistics |
+
+### Filters & Queries
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/emergencies/recent?limit=&offset=` | Paginated recent emergencies |
 | GET | `/api/emergencies/type/{type}` | Filter by type |
 | GET | `/api/emergencies/severity/{severity}` | Filter by severity |
-| GET | `/api/emergencies/location/{location}` | Filter by location |
+| GET | `/api/emergencies/location/{location}` | Search by location (LIKE) |
 | GET | `/api/emergencies/date/{date}` | Filter by date |
-| GET | `/api/emergencies/mass-casualty` | Mass casualty incidents |
+| GET | `/api/emergencies/mass-casualty?min_victims=` | Mass casualty incidents |
 | GET | `/api/emergencies/caller/{phone}` | Filter by caller phone |
+
+### Stats & Geocoding
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/emergencies/stats?days=N` | Aggregate statistics (optional last N days) |
+| POST | `/api/emergencies/geocode` | Backfill missing lat/lng for all records |
+
+### Transcript
+| Method | Path | Description |
+|--------|------|-------------|
 | POST | `/api/transcript/chunk` | Receive live transcript chunk |
-| POST | `/api/transcript/complete` | Receive final transcript |
-| GET | `/api/transcript/{id}/chunks` | List transcript chunks |
-| WS | `/ws` | Real-time event stream |
+| POST | `/api/transcript/complete` | Receive final transcript + summary |
+| GET | `/api/transcript/{id}/chunks` | List transcript chunks for an emergency |
+
+### WebSocket
+| Endpoint | Description |
+|----------|-------------|
+| WS | `/ws` | Real-time event stream (new_emergency, status_update, transcript_*, emergency_deleted) |
 
 ## Frontend Overview
 
@@ -110,16 +128,17 @@ Built with **React 19 + TypeScript + Vite + Tailwind CSS 4**.
 
 | Page | Route | Description |
 |------|-------|-------------|
-| **Feed** | `/` | Real-time emergency cards with timeline |
+| **Feed** | `/` | Real-time emergency cards with timeline, status filters, severity badges |
 | **Detail** | (slide-in) | Full incident detail, status actions, confirm dialogs |
-| **Map** | `/map` | Map view with emergency pins (planned) |
-| **Stats** | `/stats` | Analytics dashboard — stat cards + 4 charts |
-| **Transcriptions** | `/transcriptions` | Call transcript viewer |
+| **Map** | `/map` | Leaflet map with teardrop severity markers, auto-pan, popups, no-coords overlay |
+| **Stats** | `/stats` | Analytics dashboard — stat cards + 4 charts with Today/Week/Month/Year/5Y filter |
+| **Transcriptions** | `/transcriptions` | Call transcript viewer with severity filter, auto-scroll, JSON export |
 
 ### Design system
 
-- **Typeface:** Geist + Geist Mono (replaces Inter)
+- **Typeface:** Geist + Geist Mono
 - **Icon set:** Lucide React
-- **Charts:** Recharts
+- **Charts:** Recharts (bar, pie, donut)
+- **Map:** Leaflet + react-leaflet
 - **Components:** Base UI + shadcn/ui primitives
 - **Utilities:** class-variance-authority, clsx, tailwind-merge

@@ -1,32 +1,64 @@
-# React + TypeScript + Vite
+# SAVIOR Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Dispatcher dashboard built with **React 19 + TypeScript + Vite + Tailwind CSS 4**.
 
-Currently, two official plugins are available:
+## Pages
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+| Route | Component | Description |
+|-------|-----------|-------------|
+| `/` | FeedPage | Real-time emergency feed — cards with severity badges, status transitions, WS live updates |
+| `/map` | MapPage | Leaflet map with 36×48 teardrop severity markers, auto-pan on new arrivals, popups, no-coordinates overlay |
+| `/stats` | StatsPage | Analytics dashboard — 4 stat cards + 4 charts (Status Pipeline, Severity Distribution, Hourly Volume, Type Distribution) with Today/Week/Month/Year/5Y filter |
+| `/transcriptions` | TranscriptionsPage | Call transcript viewer — severity filter, JSON export, auto-scroll, adaptive full_transcript parsing |
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Component | Technology |
+|-----------|------------|
+| Framework | React 19 |
+| Language | TypeScript |
+| Build | Vite 8 |
+| Styling | Tailwind CSS 4 |
+| Charts | Recharts |
+| Map | Leaflet + react-leaflet |
+| Icons | Lucide React |
+| Components | shadcn/ui (Radix UI primitives) |
+| Testing | Vitest |
+| Routing | react-router-dom |
 
-## Expanding the Oxlint configuration
+## Quick Start
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Opens at `http://localhost:5173`. Vite proxies `/api/*` and `/ws` to `http://localhost:8000`.
+
+## Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start dev server with HMR |
+| `npm run build` | Production build |
+| `npm run lint` | Run Oxlint |
+| `npm run typecheck` | `tsc -b --noEmit` |
+| `npm test` | Run Vitest |
+
+## Project Structure
+
+```
+frontend/src/
+├── components/
+│   ├── common/        ← LoadingSkeleton, ErrorState, EmptyState
+│   ├── map/           ← EmergencyMap (Leaflet), MapFilter, MapLegend
+│   ├── stats/         ← StatsGrid (4 charts + stat cards)
+│   ├── transcript/    ← TranscriptList, TranscriptCard
+│   └── ui/            ← shadcn/ui primitives (button, badge, dialog, etc.)
+├── hooks/             ← useEmergencyFeed, useApi, EmergencyFeedContext
+├── lib/               ← types, constants (STATUS_TRANSITIONS, SEVERITY_COLORS)
+├── pages/             ← FeedPage, MapPage, StatsPage, TranscriptionsPage
+├── App.tsx            ← Router setup
+└── main.tsx           ← Entry point
+```
