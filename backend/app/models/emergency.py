@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import enum
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, Enum as SAEnum
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Enum as SAEnum
 
 from app.core.database import Base
 
@@ -29,5 +29,7 @@ class Emergency(Base):
     immediate_danger = Column(String(255), nullable=True)
     summary = Column(Text, nullable=True)
     status = Column(SAEnum(EmergencyStatus), default=EmergencyStatus.pending, nullable=False)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
     full_transcript = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

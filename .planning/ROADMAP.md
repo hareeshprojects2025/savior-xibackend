@@ -65,7 +65,7 @@ Add emergency status lifecycle, transcript ingestion, WebSocket broadcasting, an
 
 ---
 
-### Phase 4 — Dashboard Views
+### Phase 4 — Dashboard Views ✅
 
 **Goal:** Polish and refine the map experience and transcription viewer.
 

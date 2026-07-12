@@ -22,6 +22,8 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isRetryingRef = useRef(false)
 
+  const pingRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
   const connect = useCallback(() => {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:"
     const wsUrl = `${protocol}//${location.host}/ws`
@@ -33,10 +35,14 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
       setConnected(true)
       setError(null)
       retriesRef.current = 0
+      pingRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ping" }))
+      }, 30000)
     }
 
     ws.onclose = () => {
       setConnected(false)
+      if (pingRef.current) { clearInterval(pingRef.current); pingRef.current = null }
       if (!isRetryingRef.current) { scheduleReconnect() }
       isRetryingRef.current = false
     }
@@ -116,6 +122,7 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
     connect()
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
+      if (pingRef.current) clearInterval(pingRef.current)
       wsRef.current?.close()
     }
   }, [connect])

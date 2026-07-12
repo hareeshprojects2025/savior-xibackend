@@ -1,13 +1,13 @@
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, AreaChart, Area,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell,
 } from "recharts"
 import { Skeleton } from "@/components/common/LoadingSkeleton"
 import { ErrorState } from "@/components/common/ErrorState"
 import { EmptyState } from "@/components/common/EmptyState"
 import {
   BarChart3, TrendingUp, TrendingDown, Minus,
-  Activity, AlertTriangle, CheckCircle,
+  Activity, AlertTriangle, CheckCircle, ArrowRight,
 } from "lucide-react"
 import type { EmergencyStats } from "@/lib/types"
 
@@ -105,15 +105,15 @@ export function StatsGrid({ stats, loading, error, onRetry }: StatsGridProps) {
     pct: Math.round((d.value / totalVal) * 100),
   }))
 
-  const trendData = [
-    { label: "00:00", active: 0, resolved: 0 },
-    { label: "06:00", active: Math.round(stats.active_count * 0.4), resolved: Math.round(stats.resolved_count * 0.3) },
-    { label: "12:00", active: Math.round(stats.active_count * 0.8), resolved: Math.round(stats.resolved_count * 0.6) },
-    { label: "18:00", active: stats.active_count, resolved: Math.round(stats.resolved_count * 0.8) },
-    { label: "24:00", active: Math.round(stats.active_count * 0.3), resolved: stats.resolved_count },
-  ]
   const totalPct = (totalVal > 0) ? 100 :
     Math.max(...severityBars.map((d) => d.pct), 100)
+
+  const STATUS_STAGES = ["pending", "dispatched", "en_route", "resolved"] as const
+  const STAGE_LABELS: Record<string, string> = { pending: "Pending", dispatched: "Dispatched", en_route: "En Route", resolved: "Resolved" }
+  const STAGE_COLORS: Record<string, string> = { pending: "#6B7280", dispatched: "#F59E0B", en_route: "#3B82F6", resolved: "#10B981" }
+  const STAGE_BG: Record<string, string> = { pending: "bg-gray-100", dispatched: "bg-amber-50", en_route: "bg-blue-50", resolved: "bg-green-50" }
+  const pipelineData = STATUS_STAGES.map((s) => ({ stage: s, count: stats.by_status[s] || 0 }))
+  const pipelineMax = Math.max(...pipelineData.map((d) => d.count), 1)
 
   return (
     <div className="space-y-6">
@@ -157,32 +157,49 @@ export function StatsGrid({ stats, loading, error, onRetry }: StatsGridProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Incident Volume (Last 24h)</h4>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
-                <defs>
-                  <linearGradient id="gradResolved" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10B981" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="gradActive" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                <XAxis dataKey="label" tick={{ fill: "#94A3B8", fontSize: 11, fontFamily: "'Geist Mono', monospace" }} axisLine={false} tickLine={false} dy={8} />
-                <YAxis tick={{ fill: "#94A3B8", fontSize: 11, fontFamily: "'Geist Mono', monospace" }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={{ background: "#2a313d", border: "1px solid #c2c6d6", borderRadius: "0.5rem", fontSize: "12px", fontFamily: "'Geist Mono', monospace" }}
-                  labelStyle={{ color: "#fff", fontWeight: 700, marginBottom: "4px" }}
-                />
-                <Legend verticalAlign="top" height={28} iconType="circle" wrapperStyle={{ fontSize: "11px", fontFamily: "'Geist', sans-serif" }} />
-                <Area type="monotone" dataKey="resolved" stroke="#10B981" fill="url(#gradResolved)" name="Resolved" strokeWidth={2} />
-                <Area type="monotone" dataKey="active" stroke="#F59E0B" fill="url(#gradActive)" name="Active" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
+          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Emergency Lifecycle</h4>
+          <div className="h-64 flex flex-col justify-center">
+            <div className="flex items-end gap-1.5 px-2">
+              {pipelineData.map((d, i) => {
+                const pct = Math.max((d.count / pipelineMax) * 100, 20)
+                return (
+                  <div key={d.stage} className="flex-1 flex flex-col items-center gap-1.5">
+                    <div
+                      className={`w-full rounded-lg flex items-center justify-center transition-all ${STAGE_BG[d.stage]}`}
+                      style={{ height: `${Math.max(pct * 0.45, 32)}px` }}
+                    >
+                      <span className="text-lg font-bold cockpit-number" style={{ color: STAGE_COLORS[d.stage] }}>
+                        {d.count}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{STAGE_LABELS[d.stage]}</span>
+                    {i < pipelineData.length - 1 && (
+                      <ArrowRight className="size-3.5 text-gray-300 -mt-0.5" />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            <div className="mt-6 flex items-center justify-center gap-6 text-xs">
+              <div className="flex items-center gap-1.5">
+                <div className="size-2.5 rounded-full bg-amber-400" />
+                <span className="text-gray-500 font-medium">
+                  Active: <span className="cockpit-number text-gray-800">{stats.active_count}</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="size-2.5 rounded-full bg-green-500" />
+                <span className="text-gray-500 font-medium">
+                  Resolved: <span className="cockpit-number text-gray-800">{stats.resolved_count}</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="size-2.5 rounded-full bg-blue-500" />
+                <span className="text-gray-500 font-medium">
+                  Completion: <span className="cockpit-number text-gray-800">{stats.total_emergencies > 0 ? Math.round((stats.resolved_count / stats.total_emergencies) * 100) : 0}%</span>
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 

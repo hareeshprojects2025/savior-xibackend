@@ -24,6 +24,10 @@ class EmergencyCreate(BaseModel):
     description: Optional[str] = Field(None, examples=["Smoke coming from third floor"])
     immediate_danger: Optional[str] = Field(None, examples=["Yes"])
     summary: Optional[str] = Field(None, examples=["Fire at 123 Main Street. 3 victims."])
+    latitude: Optional[float] = Field(None, examples=[15.3647])
+    longitude: Optional[float] = Field(None, examples=[75.1240])
+    status: Optional[EmergencyStatus] = None
+    created_at: Optional[datetime] = None
 
 
 class EmergencyUpdate(BaseModel):
@@ -50,6 +54,8 @@ class EmergencyOut(BaseModel):
     description: Optional[str] = None
     immediate_danger: Optional[str] = None
     summary: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     status: EmergencyStatus
     full_transcript: Optional[str] = None
     created_at: datetime
@@ -68,6 +74,8 @@ class EmergencySummary(BaseModel):
     description: Optional[str] = None
     victims: Optional[int] = None
     immediate_danger: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     status: EmergencyStatus
     created_at: datetime
 
