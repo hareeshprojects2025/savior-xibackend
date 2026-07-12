@@ -6,10 +6,10 @@ import type { EmergencyStats } from "@/lib/types"
 
 export function StatsPage() {
   const [stats, setStats] = useState<EmergencyStats | null>(null)
-  const [period, setPeriod] = useState<"Today" | "Week" | "Month">("Today")
+  const [period, setPeriod] = useState<"Today" | "Week" | "Month" | "Year" | "5 Year">("Today")
   const { fetchStats, loading, error } = useApi()
 
-  const periodDays: Record<string, number | undefined> = { Today: 1, Week: 7, Month: 30 }
+  const periodDays: Record<string, number | undefined> = { Today: 1, Week: 7, Month: 30, Year: 365, "5 Year": 1825 }
 
   useEffect(() => {
     fetchStats(periodDays[period]).then(setStats)
@@ -30,7 +30,7 @@ export function StatsPage() {
         </div>
         <div className="flex gap-2">
           <div className="flex gap-1 bg-white border border-gray-200 rounded-lg p-0.5">
-            {(["Today", "Week", "Month"] as const).map((p) => (
+            {(["Today", "Week", "Month", "Year", "5 Year"] as const).map((p) => (
               <button
                 key={p}
                 onClick={() => setPeriod(p)}
@@ -55,7 +55,7 @@ export function StatsPage() {
         stats={stats}
         loading={loading}
         error={error}
-        onRetry={() => fetchStats().then(setStats)}
+        onRetry={() => fetchStats(periodDays[period]).then(setStats)}
       />
     </div>
   )
