@@ -1,0 +1,39 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-07-12T18:36:44.900Z",
+  "phase": "02",
+  "phase_name": "bolna-agent",
+  "phase_dir": ".planning/phases/02-bolna-agent",
+  "plan": 1,
+  "task": 7,
+  "total_tasks": 7,
+  "status": "paused",
+  "completed_tasks": [
+    {"name": "Update post-emergency.json URL to ngrok endpoint", "status": "done", "commit": "e899345"},
+    {"name": "Update send-transcript-chunk.json URL to ngrok endpoint", "status": "done", "commit": "e899345"},
+    {"name": "Fix immediate_danger column width", "status": "done", "commit": "e899345"},
+    {"name": "Fix ClientDisconnect handling in transcript endpoints", "status": "done", "commit": "e899345"},
+    {"name": "Set Analytics Webhook URL via PATCH API", "status": "done", "commit": "4d932fb"},
+    {"name": "Update Custom Functions via PUT API", "status": "done", "commit": "4d932fb"},
+    {"name": "Verify System Prompt", "status": "done", "commit": "4d932fb"}
+  ],
+  "remaining_tasks": [],
+  "blockers": [],
+  "async_jobs": [],
+  "human_actions_pending": [
+    {"action": "Replace Nominatim with Photon API in geocoding_service.py", "context": "Photon is faster, no rate limit, better Indian address support. Code change is ~10 lines.", "blocking": false},
+    {"action": "Re-order languages in Bolna dashboard (English only) to prevent language transfer", "context": "User's Bolna dashboard config causes language transfer mid-call", "blocking": false}
+  ],
+  "decisions": [
+    {"decision": "Marker colors: red (Critical), orange (High), teal (Medium), violet (Low)", "rationale": "Nominatim's red+amber+yellow were indistinguishable. Switched to 4 distinct spectral bands.", "phase": "02"},
+    {"decision": "Marker status icons: + (pending), ▲ (dispatched), ⚡ (en_route), ✓ (resolved)", "rationale": "Markers now encode both severity (color) and status (symbol) for quick visual scan.", "phase": "02"},
+    {"decision": "Marker icon inner elements must use stroke=white, not fill=white", "rationale": "fill=white is invisible against the white background circle. The .replace() only changes stroke=white to severity color.", "phase": "02"},
+    {"decision": "Replaced Nominatim with Photon for geocoding", "rationale": "Photon has no strict rate limit, better non-English support (Indian addresses), no User-Agent header needed, faster response.", "phase": "02"}
+  ],
+  "uncommitted_files": [
+    "backend/README.md",
+    "frontend/src/components/map/EmergencyMap.tsx"
+  ],
+  "next_action": "Commit uncommitted changes (backend/README.md Photon doc, EmergencyMap.tsx dispatched icon fix), then apply Photon geocoding migration",
+  "context_notes": "This session focused on fixing integration bugs from real Bolna call testing and polishing the map page. Everything in phase 2 plan is complete. The work has shifted to maintenance/fix mode. Main anti-pattern to avoid: marker SVG inner icons must use stroke not fill, or the white-to-color replacement will miss them."
+}
