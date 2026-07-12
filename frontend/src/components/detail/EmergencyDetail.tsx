@@ -155,7 +155,7 @@ export function EmergencyDetail({ emergency, onStatusChange, onDelete, transcrip
 
       <Separator className="bg-gray-200" />
       <div>
-        <MiniMap location={emergency.location} lat={emergency.latitude} lng={emergency.longitude} />
+        <MiniMap key={`map-${emergency.id}-${emergency.latitude ?? "null"}-${emergency.longitude ?? "null"}`} location={emergency.location} lat={emergency.latitude} lng={emergency.longitude} />
         <p className="text-sm text-gray-600 font-medium mb-1 mt-2">{emergency.location}</p>
         <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:underline">
           <ExternalLink className="size-3.5" /> Open in Maps

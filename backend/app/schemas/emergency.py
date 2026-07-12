@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class EmergencyStatus(str, Enum):
@@ -14,7 +14,7 @@ class EmergencyStatus(str, Enum):
 
 class EmergencyCreate(BaseModel):
     caller_name: str = Field(..., examples=["Alice"])
-    caller_phone: str = Field(..., examples=["+919876543210"])
+    caller_phone: Optional[str] = Field(None, examples=["+919876543210"])
     victim_name: Optional[str] = Field(None, examples=["Bob"])
     emergency_type: str = Field(..., examples=["Fire"])
     severity: Optional[str] = Field(None, examples=["High"])
@@ -26,8 +26,17 @@ class EmergencyCreate(BaseModel):
     summary: Optional[str] = Field(None, examples=["Fire at 123 Main Street. 3 victims."])
     latitude: Optional[float] = Field(None, examples=[15.3647])
     longitude: Optional[float] = Field(None, examples=[75.1240])
+    bolna_call_id: Optional[str] = Field(None, examples=["call_abc123"])
     status: Optional[EmergencyStatus] = None
     created_at: Optional[datetime] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_empty_strings(cls, values: dict) -> dict:
+        for field in ("caller_phone", "victim_name", "landmark", "severity", "description", "immediate_danger", "summary"):
+            if values.get(field) == "":
+                values[field] = None
+        return values
 
 
 class EmergencyUpdate(BaseModel):
@@ -58,6 +67,7 @@ class EmergencyOut(BaseModel):
     longitude: Optional[float] = None
     status: EmergencyStatus
     full_transcript: Optional[str] = None
+    bolna_call_id: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -77,6 +87,7 @@ class EmergencySummary(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     status: EmergencyStatus
+    bolna_call_id: Optional[str] = None
     created_at: datetime
 
     class Config:

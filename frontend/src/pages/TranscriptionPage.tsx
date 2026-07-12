@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import { Download, ArrowRight, User, MapPin, Phone, Terminal, Clock, Users } from "lucide-react"
 import { useEmergencyFeedContext } from "@/hooks/EmergencyFeedContext"
+import { FeedSkeleton } from "@/components/common/LoadingSkeleton"
 import { formatTimeAgo } from "@/lib/utils"
 
 interface Line {
@@ -58,7 +59,7 @@ function CallCard({ id, caller_name, emergency_type, severity, location, victims
 
       <div className="flex items-center gap-2 mb-1.5">
         <User className="size-4 text-gray-400 shrink-0" />
-        <span className="text-base font-semibold text-gray-900">{caller_name}</span>
+        <span className="text-base font-semibold text-gray-900">{caller_name || "Unknown"}</span>
       </div>
 
       {summary && (
@@ -100,48 +101,51 @@ function LiveTranscriptCard({ session_id, transcript_text, emergency_type, speak
   })
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden flex flex-col shadow-sm">
-      <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+    <div className="rounded-xl border border-[#3f465c] bg-[#2a313d] overflow-hidden flex flex-col shadow-lg">
+      <div className="bg-[#1a2130] px-4 py-2 flex items-center justify-between border-b border-[#3f465c]">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="font-mono text-xs font-bold text-green-600 uppercase tracking-wider">Live</span>
+          <Terminal className="size-4 text-[#adc6ff]" />
+          <span className="font-mono text-[11px] text-[#adc6ff] uppercase tracking-widest">Live Transcription Stream</span>
           {emergency_type && (
-            <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] font-semibold bg-[#adc6ff]/20 text-[#adc6ff] px-2 py-0.5 rounded-full border border-[#adc6ff]/30">
               {emergency_type}
             </span>
           )}
-          <span className="text-xs text-gray-400 font-mono">{session_id}</span>
         </div>
-        <span className="text-xs text-gray-400">{lines.length} lines</span>
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <span className="font-mono text-[10px] text-green-500 uppercase tracking-wider">REC</span>
+          <span className="text-[10px] text-[#727785] font-mono ml-2">{session_id}</span>
+        </div>
       </div>
       <div
         ref={scrollRef}
-        className="bg-gray-900 p-4 overflow-y-auto font-mono text-sm leading-relaxed space-y-2"
+        className="flex-1 overflow-y-auto p-4 font-mono text-sm leading-relaxed space-y-2"
         style={{ minHeight: "160px", maxHeight: "320px", scrollbarWidth: "thin", scrollbarColor: "#4B5563 transparent" }}
       >
         {lines.length === 0 && (
-          <p className="text-gray-500 text-center py-4">Waiting for transcription...</p>
+          <p className="text-[#727785] text-center py-4">Waiting for transcription...</p>
         )}
         {lines.map((line, i) => (
           <div key={i} className="flex gap-3 items-start">
-            <span className="text-gray-500 w-10 shrink-0 pt-0.5 text-xs">
+            <span className="text-[#727785] w-10 shrink-0 pt-0.5 text-xs">
               {String(i + 1).padStart(2, "0")}
             </span>
             <div>
               <span className={`font-bold mr-2 tracking-wide text-xs ${
-                line.speaker === "AI" ? "text-blue-300" : "text-yellow-400"
+                line.speaker === "AI" ? "text-[#adc6ff]" : "text-[#FBBF24]"
               }`}>
                 [{line.speaker.toUpperCase()}]
               </span>
-              <span className={line.speaker === "AI" ? "text-gray-300" : "text-white"}>
+              <span className={line.speaker === "AI" ? "text-[#dce2f3]" : "text-white"}>
                 {line.text}
               </span>
             </div>
           </div>
         ))}
         <div className="flex gap-3 items-start">
-          <span className="text-gray-500 w-10 shrink-0 pt-0.5 text-xs">--</span>
-          <div className="w-2 h-4 bg-blue-300 animate-pulse" />
+          <span className="text-[#727785] w-10 shrink-0 pt-0.5 text-xs">--</span>
+          <div className="w-2 h-4 bg-[#adc6ff] animate-pulse" />
         </div>
       </div>
     </div>
@@ -151,15 +155,18 @@ function LiveTranscriptCard({ session_id, transcript_text, emergency_type, speak
 function TranscriptDetail({ emergency }: { emergency: NonNullable<ReturnType<typeof useEmergencyFeedContext>["emergencies"][number]> }) {
   const [lines, setLines] = useState<Line[]>([])
   const [loading, setLoading] = useState(false)
+  const [fetchedTranscript, setFetchedTranscript] = useState<string | null>(null)
 
   useEffect(() => {
-    if (emergency.status === "resolved") {
+    if (!emergency.full_transcript) {
       setLoading(true)
       fetch(`/api/emergencies/${emergency.id}`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
-          if (data?.full_transcript) {
-            const parsed: Line[] = data.full_transcript.split("\n").filter((l: string) => l.trim()).map((line: string) => {
+          const tx = data?.full_transcript
+          setFetchedTranscript(tx || null)
+          if (tx) {
+            const parsed: Line[] = tx.split("\n").filter((l: string) => l.trim()).map((line: string) => {
               const speaker = /^(AI:|Agent:)/i.test(line) ? "AI" : "Caller"
               return { speaker, text: line.replace(/^(AI:|Agent:|Caller:)\s*/i, ""), timestamp: emergency.created_at }
             })
@@ -168,10 +175,17 @@ function TranscriptDetail({ emergency }: { emergency: NonNullable<ReturnType<typ
             setLines([])
           }
         })
-        .catch(() => setLines([]))
+        .catch(() => { setLines([]); setFetchedTranscript(null) })
         .finally(() => setLoading(false))
+    } else {
+      const parsed: Line[] = emergency.full_transcript.split("\n").filter((l: string) => l.trim()).map((line: string) => {
+        const speaker = /^(AI:|Agent:)/i.test(line) ? "AI" : "Caller"
+        return { speaker, text: line.replace(/^(AI:|Agent:|Caller:)\s*/i, ""), timestamp: emergency.created_at }
+      })
+      setLines(parsed)
+      setFetchedTranscript(emergency.full_transcript)
     }
-  }, [emergency.id, emergency.status, emergency.created_at])
+  }, [emergency.id, emergency.full_transcript, emergency.created_at])
 
   const handleExport = () => {
     if (lines.length === 0) return
@@ -186,39 +200,46 @@ function TranscriptDetail({ emergency }: { emergency: NonNullable<ReturnType<typ
     URL.revokeObjectURL(url)
   }
 
+  const hasData = fetchedTranscript !== null
+
   return (
-    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden flex flex-col shadow-sm">
-      <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+    <div className="rounded-xl border border-[#3f465c] bg-[#2a313d] overflow-hidden flex flex-col shadow-lg">
+      <div className="bg-[#1a2130] px-4 py-2 flex items-center justify-between border-b border-[#3f465c]">
         <div className="flex items-center gap-2">
-          <Terminal className="size-4 text-gray-500" />
-          <span className="font-mono text-xs font-semibold text-gray-600 uppercase tracking-wider">
+          <Terminal className="size-4 text-[#adc6ff]" />
+          <span className="font-mono text-[11px] text-[#adc6ff] uppercase tracking-widest">
             Transcript — INC-{String(emergency.id).padStart(7, "0")}
           </span>
         </div>
-        <button onClick={handleExport} className="text-xs font-semibold text-gray-500 hover:text-blue-600 flex items-center gap-1">
-          <Download className="size-3" /> Export
-        </button>
+        {hasData && (
+          <button onClick={handleExport} className="text-[10px] font-semibold text-[#adc6ff] hover:text-white flex items-center gap-1 transition-colors">
+            <Download className="size-3" /> Export
+          </button>
+        )}
       </div>
       <div
-        className="bg-gray-900 p-4 overflow-y-auto font-mono text-sm leading-relaxed space-y-2"
+        className="flex-1 overflow-y-auto p-4 font-mono text-sm leading-relaxed space-y-2"
         style={{ minHeight: "120px", maxHeight: "280px", scrollbarWidth: "thin", scrollbarColor: "#4B5563 transparent" }}
       >
-        {loading && <p className="text-gray-500 text-center py-4">Loading...</p>}
-        {!loading && lines.length === 0 && (
-          <p className="text-gray-500 text-center py-4">No transcript available</p>
+        {loading && <p className="text-[#727785] text-center py-4">Loading...</p>}
+        {!loading && !hasData && (
+          <p className="text-[#727785] text-center py-4">No transcript available</p>
+        )}
+        {hasData && lines.length === 0 && !loading && (
+          <p className="text-[#727785] text-center py-4">Transcript loaded but contains no lines</p>
         )}
         {lines.map((line, i) => (
           <div key={i} className="flex gap-3 items-start">
-            <span className="text-gray-500 w-10 shrink-0 pt-0.5 text-xs">
+            <span className="text-[#727785] w-10 shrink-0 pt-0.5 text-xs">
               {String(i + 1).padStart(2, "0")}
             </span>
             <div>
               <span className={`font-bold mr-2 tracking-wide text-xs ${
-                line.speaker === "AI" ? "text-blue-300" : "text-yellow-400"
+                line.speaker === "AI" ? "text-[#adc6ff]" : "text-[#FBBF24]"
               }`}>
                 [{line.speaker.toUpperCase()}]
               </span>
-              <span className={line.speaker === "AI" ? "text-gray-300" : "text-white"}>
+              <span className={line.speaker === "AI" ? "text-[#dce2f3]" : "text-white"}>
                 {line.text}
               </span>
             </div>
@@ -230,7 +251,7 @@ function TranscriptDetail({ emergency }: { emergency: NonNullable<ReturnType<typ
 }
 
 export function TranscriptionPage() {
-  const { emergencies, activeSessions } = useEmergencyFeedContext()
+  const { emergencies, loading, reconnecting, connected, activeSessions } = useEmergencyFeedContext()
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [severityFilter, setSeverityFilter] = useState<string | null>(null)
@@ -302,10 +323,11 @@ export function TranscriptionPage() {
             </div>
           </div>
           <div className="overflow-y-auto p-3 space-y-2" style={{ maxHeight: "calc(100vh - 10rem)" }}>
-            {filtered.length === 0 && (
+            {loading && filtered.length === 0 && <FeedSkeleton />}
+            {!loading && filtered.length === 0 && (
               <p className="text-base text-gray-400 text-center py-8">No incidents yet</p>
             )}
-            {filtered.map((e) => (
+            {!loading && filtered.map((e) => (
               <CallCard
                 key={e.id}
                 id={e.id}
@@ -325,8 +347,15 @@ export function TranscriptionPage() {
       </div>
 
       <div className="w-1/2 flex flex-col gap-4 min-w-0">
-        {activeCount > 0 && (
-          <div>
+        {reconnecting && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs font-medium text-amber-700">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            Reconnecting to server...
+          </div>
+        )}
+
+        {activeCount > 0 && !selected && (
+          <div className="flex-1 overflow-y-auto">
             <div className="flex items-center gap-2 mb-3">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
               <h2 className="text-base font-bold text-gray-900 tracking-tight">Live Transcriptions</h2>
@@ -346,24 +375,22 @@ export function TranscriptionPage() {
           </div>
         )}
 
-        {selected && selected.status === "resolved" && (
-          <div>
-            {activeCount === 0 && (
-              <h2 className="text-base font-bold text-gray-900 tracking-tight mb-3">Transcript</h2>
-            )}
-            {activeCount > 0 && (
-              <h2 className="text-base font-bold text-gray-900 tracking-tight mb-3">Recent Transcript</h2>
-            )}
+        {selected && (
+          <div className="flex-1 overflow-y-auto">
             <TranscriptDetail emergency={selected} />
           </div>
         )}
 
-        {activeCount === 0 && !(selected && selected.status === "resolved") && (
-          <div className="flex-1 flex items-center justify-center text-gray-400">
-            <div className="text-center">
-              <Terminal className="size-8 mx-auto mb-3 opacity-50" />
-              <p className="text-base font-medium">No active calls</p>
-              <p className="text-sm mt-1">Live transcriptions appear here during calls</p>
+        {activeCount === 0 && !selected && (
+          <div className="flex-1 min-h-0">
+            <div className="h-full border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center">
+              <div className="text-center px-6">
+                <Terminal className="size-8 mx-auto mb-3 text-gray-300" />
+                <p className="text-sm font-medium text-gray-400">
+                  {emergencies.length > 0 ? "Call ended — transcript being processed" : "No active calls"}
+                </p>
+                <p className="text-xs text-gray-300 mt-1">Live transcription will appear here during a call</p>
+              </div>
             </div>
           </div>
         )}

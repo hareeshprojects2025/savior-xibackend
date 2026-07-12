@@ -19,6 +19,7 @@ export interface Emergency {
   longitude: number | null
   status: EmergencyStatus
   full_transcript: string | null
+  bolna_call_id: string | null
   created_at: string
 }
 

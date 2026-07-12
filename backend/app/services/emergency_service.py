@@ -1,4 +1,3 @@
-import asyncio
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import extract, func
@@ -10,13 +9,13 @@ from app.core.websocket import manager
 from app.services.geocoding_service import geocode_location
 
 
-def create_emergency(db: Session, data: EmergencyCreate) -> Emergency:
+async def create_emergency(db: Session, data: EmergencyCreate) -> Emergency:
     record = Emergency(**data.model_dump())
     db.add(record)
     db.commit()
     db.refresh(record)
     if record.latitude is None and record.longitude is None and record.location:
-        coords = asyncio.run(geocode_location(record.location))
+        coords = await geocode_location(record.location, record.landmark)
         if coords:
             record.latitude, record.longitude = coords
             db.commit()
@@ -121,6 +120,7 @@ def get_emergency_stats(db: Session, days: int | None = None) -> dict:
     active_count = q.filter(Emergency.status != EmergencyStatus.resolved).count()
     resolved_count = q.filter(Emergency.status == EmergencyStatus.resolved).count()
 
+    IST_OFFSET = timedelta(hours=5, minutes=30)
     hourly_rows = (
         q.with_entities(
             extract("hour", Emergency.created_at).label("hour"),
@@ -130,7 +130,11 @@ def get_emergency_stats(db: Session, days: int | None = None) -> dict:
         .order_by(extract("hour", Emergency.created_at))
         .all()
     )
-    hourly_counts = {int(row.hour): row.count for row in hourly_rows}
+    hourly_counts = {}
+    for row in hourly_rows:
+        utc_hour = int(row.hour)
+        ist_hour = int((utc_hour + 5.5) % 24)
+        hourly_counts[ist_hour] = hourly_counts.get(ist_hour, 0) + row.count
     by_hour = [{"hour": f"{h:02d}:00", "count": hourly_counts.get(h, 0)} for h in range(24)]
 
     return {
@@ -165,7 +169,7 @@ def update_emergency(db: Session, emergency_id: int, data: EmergencyUpdate) -> E
     return record
 
 
-def backfill_coordinates(db: Session) -> dict:
+async def backfill_coordinates(db: Session) -> dict:
     records = db.query(Emergency).filter(
         Emergency.latitude.is_(None),
         Emergency.longitude.is_(None),
@@ -173,7 +177,7 @@ def backfill_coordinates(db: Session) -> dict:
     ).all()
     updated = 0; failed = 0
     for record in records:
-        coords = asyncio.run(geocode_location(record.location))
+        coords = await geocode_location(record.location, record.landmark)
         if coords:
             record.latitude, record.longitude = coords
             updated += 1

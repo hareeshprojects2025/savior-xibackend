@@ -36,13 +36,13 @@ router = APIRouter(tags=["Emergency"])
 
 @router.post("/emergencies/geocode")
 async def geocode_existing(db: Session = Depends(get_db)):
-    result = backfill_coordinates(db)
+    result = await backfill_coordinates(db)
     return result
 
 
 @router.post("/emergency", response_model=EmergencyResponse)
 async def report_emergency(data: EmergencyCreate, db: Session = Depends(get_db)):
-    record = create_emergency(db, data)
+    record = await create_emergency(db, data)
     await manager.broadcast({
         "type": "new_emergency",
         "data": EmergencyOut.model_validate(record).model_dump(),

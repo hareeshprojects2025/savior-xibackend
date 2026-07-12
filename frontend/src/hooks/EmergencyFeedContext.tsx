@@ -11,6 +11,8 @@ interface TranscriptLine {
 interface EmergencyFeedContextValue {
   emergencies: Emergency[]
   connected: boolean
+  loading: boolean
+  reconnecting: boolean
   error: string | null
   retry: () => void
   transcripts: Record<number, TranscriptLine[]>
@@ -20,14 +22,14 @@ interface EmergencyFeedContextValue {
 const EmergencyFeedContext = createContext<EmergencyFeedContextValue | null>(null)
 
 export function EmergencyFeedProvider({ children }: { children: ReactNode }) {
-  const { emergencies, connected, error, retry, prefetch, transcripts, activeSessions } = useEmergencyFeed()
+  const { emergencies, connected, loading, reconnecting, error, retry, prefetch, transcripts, activeSessions } = useEmergencyFeed()
 
   useEffect(() => {
     prefetch()
   }, [prefetch])
 
   return (
-    <EmergencyFeedContext.Provider value={{ emergencies, connected, error, retry, transcripts, activeSessions }}>
+    <EmergencyFeedContext.Provider value={{ emergencies, connected, loading, reconnecting, error, retry, transcripts, activeSessions }}>
       {children}
     </EmergencyFeedContext.Provider>
   )

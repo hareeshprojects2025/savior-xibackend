@@ -17,11 +17,11 @@ from app.main import app
 import app.services.emergency_service as _es
 import app.services.geocoding_service as _gs
 
-_gs.geocode_location = lambda loc: None
+_gs.geocode_location = lambda loc, landmark=None: None
 original_create = _es.create_emergency
 
 
-def _safe_create_emergency(db, data):
+async def _safe_create_emergency(db, data):
     from app.models.emergency import Emergency
     record = Emergency(**data.model_dump())
     db.add(record)

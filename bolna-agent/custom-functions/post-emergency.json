@@ -42,6 +42,10 @@
       },
       "immediate_danger": {
         "type": "string"
+      },
+      "call_id": {
+        "type": "string",
+        "description": "Unique identifier for this call, used to match transcript to the emergency record"
       }
     }
   },
@@ -59,7 +63,8 @@
       "victim_name": "%(victim_name)s",
       "caller_phone": "%(caller_phone)s",
       "emergency_type": "%(emergency_type)s",
-      "immediate_danger": "%(immediate_danger)s"
+      "immediate_danger": "%(immediate_danger)s",
+      "bolna_call_id": "%(call_id)s"
     },
     "url": "https://lachelle-ungrounded-jerri.ngrok-free.dev/api/emergency",
     "api_token": null,

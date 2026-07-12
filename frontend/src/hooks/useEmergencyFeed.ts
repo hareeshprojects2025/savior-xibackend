@@ -15,6 +15,8 @@ interface UseEmergencyFeedOptions {
 export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
   const [emergencies, setEmergencies] = useState<Emergency[]>([])
   const [connected, setConnected] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [reconnecting, setReconnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [transcripts, setTranscripts] = useState<Record<number, TranscriptLine[]>>({})
   const [activeSessions, setActiveSessions] = useState<Record<string, ActiveSession>>({})
@@ -22,6 +24,7 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
   const retriesRef = useRef(0)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isRetryingRef = useRef(false)
+  const scheduledRef = useRef(false)
 
   const pingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -34,11 +37,31 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
 
     ws.onopen = () => {
       setConnected(true)
+      setReconnecting(false)
       setError(null)
       retriesRef.current = 0
+      scheduledRef.current = false
       pingRef.current = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ping" }))
       }, 30000)
+
+      fetch("/api/transcript/live-sessions").then((r) => r.ok && r.json()).then((data) => {
+        if (data?.sessions?.length) {
+          setActiveSessions((prev) => {
+            const next = { ...prev }
+            for (const s of data.sessions) {
+              next[s.session_id] = {
+                session_id: s.session_id,
+                transcript_text: s.transcript_text,
+                speaker: s.speaker,
+                emergency_type: s.emergency_type,
+                updated_at: s.updated_at,
+              }
+            }
+            return next
+          })
+        }
+      }).catch(() => {})
     }
 
     ws.onclose = () => {
@@ -59,7 +82,15 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
         switch (msg.type) {
           case "new_emergency":
             if (msg.data) {
-              setEmergencies((prev) => [msg.data!, ...prev])
+              setEmergencies((prev) => {
+                const idx = prev.findIndex((e) => e.id === msg.data!.id)
+                if (idx >= 0) {
+                  const updated = [...prev]
+                  updated[idx] = msg.data!
+                  return updated
+                }
+                return [msg.data!, ...prev]
+              })
               options?.onNewEmergency?.(msg.data)
             }
             break
@@ -155,9 +186,11 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
   }, [options])
 
   const scheduleReconnect = useCallback(() => {
-    const delays = [1000, 2000, 4000, 8000, 16000, 30000]
+    const delays = [500, 1000, 1000, 2000, 2000, 4000]
     const delay = delays[Math.min(retriesRef.current, delays.length - 1)]
     retriesRef.current++
+    scheduledRef.current = true
+    setReconnecting(true)
 
     timerRef.current = setTimeout(() => {
       connect()
@@ -166,7 +199,20 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
 
   useEffect(() => {
     connect()
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible" && (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)) {
+        retriesRef.current = 0
+        setReconnecting(true)
+        isRetryingRef.current = true
+        wsRef.current?.close()
+        connect()
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibility)
+
     return () => {
+      document.removeEventListener("visibilitychange", onVisibility)
       if (timerRef.current) clearTimeout(timerRef.current)
       if (pingRef.current) clearInterval(pingRef.current)
       wsRef.current?.close()
@@ -181,6 +227,7 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
   }, [connect])
 
   const prefetch = useCallback(async () => {
+    setLoading(true)
     try {
       const res = await fetch("/api/emergencies/recent?limit=50")
       if (res.ok) {
@@ -193,8 +240,10 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
       }
     } catch {
       setError("Failed to load emergencies")
+    } finally {
+      setLoading(false)
     }
   }, [])
 
-  return { emergencies, connected, error, retry, prefetch, transcripts, setTranscripts, activeSessions }
+  return { emergencies, connected, loading, reconnecting, error, retry, prefetch, transcripts, setTranscripts, activeSessions }
 }

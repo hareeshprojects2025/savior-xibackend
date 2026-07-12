@@ -20,6 +20,10 @@
       "emergency_type_detected": {
         "type": "string",
         "description": "Emergency type identified so far, if any"
+      },
+      "call_id": {
+        "type": "string",
+        "description": "Unique identifier for this call/execution, used to associate transcript chunks with the correct emergency record"
       }
     }
   },
@@ -29,7 +33,8 @@
     "param": {
       "transcript_text": "%(transcript_text)s",
       "speaker": "%(speaker)s",
-      "emergency_type_detected": "%(emergency_type_detected)s"
+      "emergency_type_detected": "%(emergency_type_detected)s",
+      "call_id": "%(call_id)s"
     },
     "url": "https://lachelle-ungrounded-jerri.ngrok-free.dev/api/transcript_chunk",
     "api_token": null,

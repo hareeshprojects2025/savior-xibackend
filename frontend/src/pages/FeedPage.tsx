@@ -14,7 +14,7 @@ export function FeedPage() {
   const [selectedSeverity, setSelectedSeverity] = useState<string | null>(null)
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest")
 
-  const { emergencies, connected, error: wsError, retry, transcripts } = useEmergencyFeedContext()
+  const { emergencies, connected, loading, error: wsError, retry, transcripts } = useEmergencyFeedContext()
   const { updateStatus, deleteEmergency } = useApi()
 
   const handleStatusUpdate = useCallback(async (id: number, status: EmergencyStatus) => { await updateStatus(id, status) }, [updateStatus])
@@ -59,6 +59,7 @@ export function FeedPage() {
         <div className="overflow-y-auto pr-2 h-[calc(100%-8rem)]">
           <EmergencyList
             emergencies={filteredEmergencies}
+            loading={loading}
             error={wsError}
             selectedId={selectedId}
             onSelect={setSelectedId}
