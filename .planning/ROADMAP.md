@@ -150,26 +150,26 @@ Milestone 2 (v2)
 └── Phases 8–10 — Future
 ```
 
-### Phase 6 — Dispatch Engine
+### Phase 6 — Dispatch Engine 🚧
 
-**Goal:** Automated emergency call processing — incident validation, routing, station selection, and dispatch execution.
+**Goal:** Automated emergency call processing — incident validation, district check, duplicate detection, location capture via SMS, station ranking and routing, dispatch execution with ACK tracking via Bolna agent.
 
-**Depends on:** Phase 5 (Polish).
+**Depends on:** Phase 5 (Polish)
 
-**Plans:** 0 plans
+**Plans:** 4 sub-plans
 
-Plans:
-
-- [ ] TBD (run /gsd-plan-phase 6 to break down)
-
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase 5
-**Plans:** 0 plans
+| Plan | Wave | Focus | Depends On |
+|------|------|-------|------------|
+| A | 1 | Backend Foundation (models, services, seed data) | — |
+| B | 2 | Dispatch Pipeline + API Endpoints | A |
+| C | 3 | Frontend Dispatch Panel + UI | B |
+| D | 4 | ACK + Bolna Integration + Escalation | C |
 
 Plans:
-
-- [ ] TBD (run /gsd-plan-phase 6 to break down)
+- [ ] A — Backend Foundation (Station model, DispatchRecord, core services)
+- [ ] B — Dispatch Pipeline + API (orchestration, endpoints, location capture)
+- [ ] C — Frontend Dispatch Panel (DispatchPage, components, hooks)
+- [ ] D — ACK + Bolna Integration (MessageService, escalation, timers)
 
 ---
 
