@@ -2,6 +2,41 @@ export type EmergencyStatus = "pending" | "dispatched" | "en_route" | "resolved"
 
 export type Severity = "Critical" | "High" | "Medium" | "Low" | null
 
+export interface Station {
+  id: number
+  name: string
+  type: "police" | "fire" | "medical"
+  latitude: number
+  longitude: number
+  address: string
+  phone: string | null
+}
+
+export interface StationRanking {
+  station: Station
+  distance_km: number
+  eta_minutes: number
+  encoded_polyline: string
+}
+
+export type DispatchStatus = "pending_call" | "acknowledged" | "rejected" | "no_answer" | "escalated" | "dispatch_failed"
+
+export interface DispatchRecord {
+  id: number
+  emergency_id: number
+  station_id: number
+  status: DispatchStatus
+  dispatched_at: string | null
+  acknowledged_at: string | null
+  created_at: string
+}
+
+export interface DispatchResponse {
+  status: string
+  dispatch_id: number
+  message: string
+}
+
 export interface Emergency {
   id: number
   caller_name: string
@@ -48,7 +83,7 @@ export interface EmergencyStats {
 }
 
 export interface WsMessage {
-  type: "new_emergency" | "status_update" | "transcript_chunk" | "transcript_complete" | "transcript_resolved" | "emergency_deleted" | "live_transcript"
+  type: "new_emergency" | "status_update" | "transcript_chunk" | "transcript_complete" | "transcript_resolved" | "emergency_deleted" | "live_transcript" | "dispatch_update" | "dispatch_escalated" | "location_received" | "dispatch_failed"
   emergency_id?: number
   status?: EmergencyStatus
   chunk_text?: string
@@ -60,6 +95,15 @@ export interface WsMessage {
   emergency_type_detected?: string
   full_transcript?: string
   summary?: string
+  dispatch_status?: string
+  dispatch_record_id?: number
+  station_id?: number
+  station_name?: string
+  rankings_available?: number
+  previous_station_id?: number
+  next_station_id?: number
+  latitude?: number
+  longitude?: number
 }
 
 export interface ActiveSession {
