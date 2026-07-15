@@ -1,10 +1,11 @@
 import { NavLink } from "react-router-dom"
-import { List, Map, BarChart3, MessageSquareText } from "lucide-react"
+import { List, Map, BarChart3, MessageSquareText, RadioTower } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navItems = [
   { to: "/", icon: List, label: "Feed" },
   { to: "/map", icon: Map, label: "Map" },
+  { to: "/dispatch", icon: RadioTower, label: "Dispatch" },
   { to: "/stats", icon: BarChart3, label: "Stats" },
   { to: "/transcriptions", icon: MessageSquareText, label: "Transcriptions" },
 ]
