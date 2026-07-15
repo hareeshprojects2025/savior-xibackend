@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import enum
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Enum as SAEnum
+from sqlalchemy import Boolean, Column, Integer, String, Text, DateTime, Float, Enum as SAEnum
 
 from app.core.database import Base
 
@@ -34,3 +34,9 @@ class Emergency(Base):
     full_transcript = Column(Text, nullable=True)
     bolna_call_id = Column(String(255), nullable=True, default=None, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Phase 6 dispatch engine fields
+    location_captured = Column(Boolean, default=False)
+    district_check = Column(String(50), nullable=True)
+    pipeline_status = Column(String(50), nullable=True, default=None)
+    dispatch_record_id = Column(Integer, nullable=True)

@@ -21,7 +21,7 @@ const DEFAULT_COLOR = "#6B7280"
 
 const STATUS_INNER_ICONS: Record<string, string> = {
   pending: `<path d="M18 13v10M13 18h10" stroke="white" stroke-width="2.5" stroke-linecap="round"/>`,
-  dispatched: `<path d="M18 12l-5 8h10z" fill="white"/>`,
+  dispatched: `<path d="M18 12l-6 6h12z" stroke="white" stroke-width="2" stroke-linejoin="round" fill="none"/>`,
   en_route: `<path d="M14 22l4-16 4 16-4-6z" stroke="white" stroke-width="2" stroke-linejoin="round" fill="none"/>`,
   resolved: `<path d="M13 18l4 4 6-8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
 }

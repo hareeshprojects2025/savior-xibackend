@@ -30,6 +30,10 @@ class EmergencyCreate(BaseModel):
     status: Optional[EmergencyStatus] = None
     created_at: Optional[datetime] = None
 
+    location_captured: Optional[bool] = None
+    district_check: Optional[str] = None
+    pipeline_status: Optional[str] = None
+
     @model_validator(mode="before")
     @classmethod
     def normalize_empty_strings(cls, values: dict) -> dict:
@@ -68,6 +72,10 @@ class EmergencyOut(BaseModel):
     status: EmergencyStatus
     full_transcript: Optional[str] = None
     bolna_call_id: Optional[str] = None
+    location_captured: Optional[bool] = None
+    district_check: Optional[str] = None
+    pipeline_status: Optional[str] = None
+    dispatch_record_id: Optional[int] = None
     created_at: datetime
 
     class Config:
@@ -88,6 +96,9 @@ class EmergencySummary(BaseModel):
     longitude: Optional[float] = None
     status: EmergencyStatus
     bolna_call_id: Optional[str] = None
+    location_captured: Optional[bool] = None
+    district_check: Optional[str] = None
+    pipeline_status: Optional[str] = None
     created_at: datetime
 
     class Config:
