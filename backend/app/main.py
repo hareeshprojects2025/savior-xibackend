@@ -5,6 +5,8 @@ from app.core.database import engine, Base
 from app.core.websocket import manager
 from app.api.v1.endpoints.emergency import router as emergency_router
 from app.api.v1.endpoints.transcript import router as transcript_router
+from app.api.v1.endpoints.dispatch import router as dispatch_router
+from app.api.v1.endpoints.location import router as location_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -20,6 +22,8 @@ app.add_middleware(
 
 app.include_router(emergency_router, prefix="/api")
 app.include_router(transcript_router, prefix="/api")
+app.include_router(dispatch_router, prefix="/api")
+app.include_router(location_router, prefix="/api")
 
 
 @app.websocket("/ws")
