@@ -20,6 +20,15 @@ async def create_emergency(db: Session, data: EmergencyCreate) -> Emergency:
             record.latitude, record.longitude = coords
             db.commit()
             db.refresh(record)
+
+    # Fire-and-forget dispatch pipeline trigger (D-06, D-20)
+    try:
+        from app.services.dispatch_service import auto_trigger_dispatch_pipeline
+        await auto_trigger_dispatch_pipeline(db, record)
+    except Exception as e:
+        logger = __import__("logging").getLogger("savior.emergency")
+        logger.error("Dispatch pipeline trigger failed for emergency %d: %s", record.id, e)
+
     return record
 
 
