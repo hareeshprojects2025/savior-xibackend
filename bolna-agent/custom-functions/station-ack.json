@@ -1,0 +1,51 @@
+{
+  "name": "station_ack_response",
+  "description": "Record station personnel's acknowledgment of a dispatch notification. Called after reading incident details to the station contact and asking for verbal acknowledgment.",
+  "pre_call_message": "",
+  "parameters": {
+    "type": "object",
+    "required": [
+      "emergency_id",
+      "station_name",
+      "ack_status"
+    ],
+    "properties": {
+      "emergency_id": {
+        "type": "string",
+        "description": "Emergency ID for the dispatch being acknowledged"
+      },
+      "station_name": {
+        "type": "string",
+        "description": "Name of the station being called"
+      },
+      "ack_status": {
+        "type": "string",
+        "enum": ["acknowledged", "rejected", "needs_clarification"],
+        "description": "Station personnel's response: 'acknowledged' if they accept the dispatch, 'rejected' if they cannot respond, 'needs_clarification' if they need more details"
+      },
+      "notes": {
+        "type": "string",
+        "description": "Any additional notes or comments from the station personnel"
+      }
+    }
+  },
+  "key": "custom_task",
+  "value": {
+    "method": "POST",
+    "param": {
+      "dispatch_record_id": "%(dispatch_record_id)s",
+      "call_id": "%(call_id)s",
+      "ack_status": "%(ack_status)s",
+      "station_name": "%(station_name)s",
+      "notes": "%(notes)s"
+    },
+    "url": "https://lachelle-ungrounded-jerri.ngrok-free.dev/api/dispatch/ack",
+    "api_token": null,
+    "headers": {
+      "accept": "application/json",
+      "Content-Type": "application/json"
+    },
+    "pre_call_webhook_url": null,
+    "pre_call_webhook_param": null
+  }
+}
