@@ -166,11 +166,11 @@ Milestone 2 (v2)
 | D | 4 | ACK + Bolna Integration + Escalation | C |
 
 Plans:
-- [ ] A — Backend Foundation (Station model, DispatchRecord, core services)
-- [ ] B — Dispatch Pipeline + API (orchestration, endpoints, location capture)
-- [ ] C — Frontend Dispatch Panel (DispatchPage, components, hooks)
-- [ ] D — ACK + Bolna Integration (MessageService, escalation, timers)
+- [x] A — Backend Foundation (Station model, DispatchRecord, core services)
+- [x] B — Dispatch Pipeline + API (orchestration, endpoints, location capture)
+- [x] C — Frontend Dispatch Panel (DispatchPage, components, hooks)
+- [x] D — ACK + Bolna Integration (MessageService, escalation, timers, Bolna agent config)
 
 ---
 
-*Last updated: 2026-07-08*
+*Last updated: 2026-07-17*
