@@ -21,7 +21,7 @@ stopped_at: Phase 6 complete — 4/4 sub-plans, all backend imports pass
 
 **Core Value:** Dispatchers see emergencies as they happen and can act on them instantly — no delays between a 911 call being logged and a responder being dispatched.
 
-**Current Focus:** Phase 06 — emergency-call-dispatch-engine-incident-validation-routing-s
+**Current Focus:** Phase 5 — Polish (loading/empty/error states, responsive layout, WS reconnect polish, animations)
 
 ## Current Position
 
