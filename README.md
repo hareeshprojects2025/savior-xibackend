@@ -180,3 +180,90 @@ Built with **React 19 + TypeScript + Vite + Tailwind CSS 4**.
 - **Map:** Leaflet + react-leaflet
 - **Components:** shadcn/ui primitives + custom components
 - **Utilities:** class-variance-authority, clsx, tailwind-merge
+
+## Quick Start
+
+1. **Create the MySQL database** — Run the SQL in [Setup section](#1-create-the-database) to create `savior_db`, the `emergencies` table, and the `transcript_chunks` table.
+
+2. **Start the backend** — Copy `.env.example` to `.env` in the `backend/` directory, set your MySQL password, then run:
+   ```bash
+   cd backend
+   ..\thor\Scripts\pip install -r requirements\dev.txt
+   ..\thor\Scripts\uvicorn app.main:app --reload
+   ```
+   The API is available at `http://localhost:8000/docs`.
+
+3. **Start the frontend** — In a separate terminal:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+   The dashboard is available at `http://localhost:5173`.
+
+You now have a running SAVIOR system. Visit the dashboard, open the WebSocket feed, and submit test emergencies to see real-time updates across the Feed, Map, and Stats pages.
+
+## Usage Examples
+
+### 1. Submit an emergency via the API
+
+Use `curl` to simulate a Bolna agent reporting a fire incident:
+
+```bash
+curl -X POST http://localhost:8000/api/emergency \
+  -H "Content-Type: application/json" \
+  -d '{
+    "caller_name": "Harish",
+    "caller_phone": "+919876543210",
+    "emergency_type": "Fire",
+    "severity": "Medium",
+    "location": "House No. 45, MG Road, Bangalore",
+    "victims": 3,
+    "description": "Fire with smoke and three people trapped inside.",
+    "immediate_danger": "Smoke"
+  }'
+```
+
+Expected response:
+```json
+{
+  "status": "success",
+  "message": "Emergency recorded successfully."
+}
+```
+
+The new emergency immediately appears in the dashboard Feed and on the Map (via WebSocket broadcast).
+
+### 2. Query emergencies with filters
+
+List the most recent 5 emergencies:
+
+```bash
+curl "http://localhost:8000/api/emergencies/recent?limit=5&offset=0"
+```
+
+Filter by emergency type:
+
+```bash
+curl "http://localhost:8000/api/emergencies/type/Fire"
+```
+
+Get aggregate statistics for the last 7 days:
+
+```bash
+curl "http://localhost:8000/api/emergencies/stats?days=7"
+```
+
+### 3. Connect to the real-time WebSocket feed
+
+Use a WebSocket client (or `websocat`) to listen for live events:
+
+```bash
+websocat ws://localhost:8000/ws
+```
+
+Once connected, the server pushes events such as `new_emergency`, `status_update`, `transcript_chunk`, and `emergency_deleted`. Send a keepalive ping to maintain the connection:
+
+```json
+{"type": "ping"}
+```
