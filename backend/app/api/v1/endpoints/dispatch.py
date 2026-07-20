@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.websocket import manager
-from app.schemas.dispatch import DispatchRequest, DispatchResponse, DispatchRecordOut
+from app.schemas.dispatch import DispatchRequest, DispatchResponse, DispatchRecordOut, AckWebhookBody
 from app.schemas.station import StationRankingOut
 from app.services.dispatch_service import (
     run_ranking_pipeline,
@@ -14,7 +14,7 @@ from app.services.dispatch_service import (
     cancel_escalation,
 )
 from app.services.emergency_service import get_emergency
-from app.models.dispatch_record import DispatchRecord
+from app.models.dispatch_record import DispatchRecord, DispatchStatus
 from app.services.message_service import BolnaMessageService
 
 logger = logging.getLogger("savior.dispatch.api")
@@ -90,15 +90,18 @@ async def get_dispatch_status(emergency_id: int, db: Session = Depends(get_db)):
 
 @router.post("/dispatch/ack")
 async def dispatch_ack_webhook(
-    dispatch_record_id: int,
-    call_id: str,
-    ack_status: str,
+    body: AckWebhookBody,
     db: Session = Depends(get_db),
 ):
-    """Webhook endpoint for Bolna station ACK (D-31, D-32, D-33).
-    Accepts JSON body: {"dispatch_record_id": int, "call_id": str, "ack_status": str}"""
+    """Webhook endpoint for Bolna station ACK (D-31, D-32, D-33)."""
     logger.info("ACK webhook received: dispatch_record_id=%s, call_id=%s, ack_status=%s",
-                dispatch_record_id, call_id, ack_status)
+                body.dispatch_record_id, body.call_id, body.ack_status)
+
+    try:
+        dispatch_record_id = int(body.dispatch_record_id)
+    except (ValueError, TypeError):
+        logger.warning("Invalid dispatch_record_id: %s — ignoring webhook", body.dispatch_record_id)
+        return {"status": "ignored", "reason": f"Invalid dispatch_record_id: {body.dispatch_record_id}"}
 
     record = db.query(DispatchRecord).filter(DispatchRecord.id == dispatch_record_id).first()
     if not record:
@@ -109,7 +112,7 @@ async def dispatch_ack_webhook(
         logger.info("Dispatch %d already has status='%s' — ignoring webhook", dispatch_record_id, record.status.value)
         return {"status": "ignored", "reason": f"Already {record.status.value}"}
 
-    if ack_status == "acknowledged":
+    if body.ack_status == "acknowledged":
         record.status = "acknowledged"
         record.acknowledged_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
         db.commit()
@@ -127,7 +130,7 @@ async def dispatch_ack_webhook(
 
             # Store ACK in BolnaMessageService for polling
             bolna_service = BolnaMessageService()
-            bolna_service.process_webhook(call_id, ack_status)
+            bolna_service.process_webhook(body.call_id, body.ack_status)
 
             # Broadcast acknowledgment
             import asyncio
@@ -141,13 +144,26 @@ async def dispatch_ack_webhook(
         logger.info("Dispatch %d acknowledged by station %d", dispatch_record_id, record.station_id)
         return {"status": "acknowledged"}
 
-    elif ack_status in ("rejected", "no_answer"):
-        # Escalate to next station
-        result = await escalate_dispatch(db, dispatch_record_id)
-        if result:
-            logger.info("Escalated from dispatch %d: %s", dispatch_record_id, result.get("status"))
-            return {"status": "escalated", "detail": result}
-        else:
-            return {"status": "dispatch_failed", "detail": "All stations exhausted"}
+    elif body.ack_status in ("rejected", "no_answer", "needs_clarification"):
+        # Mark escalated + await redispatch
+        record.status = DispatchStatus.escalated
+        db.commit()
 
-    return {"status": "unknown_ack_status", "ack_status": ack_status}
+        emergency = __import__("app.services.emergency_service", fromlist=["get_emergency"]).get_emergency(db, record.emergency_id)
+        if emergency:
+            emergency.pipeline_status = "awaiting_redispatch"
+            db.commit()
+
+            import asyncio
+            asyncio.create_task(manager.broadcast({
+                "type": "dispatch_update",
+                "emergency_id": record.emergency_id,
+                "dispatch_status": "awaiting_redispatch",
+                "station_id": record.station_id,
+                "message": "Station did not respond",
+            }))
+
+        logger.info("Dispatch %d awaiting redispatch: %s", dispatch_record_id, body.ack_status)
+        return {"status": "awaiting_redispatch"}
+
+    return {"status": "unknown_ack_status", "ack_status": body.ack_status}

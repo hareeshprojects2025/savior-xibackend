@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SAVIOR — Location Sharing</title>
+<title>SAVIOR - Location Sharing</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -38,6 +38,43 @@
     font-size: 14px;
     color: #64748b;
     margin-bottom: 24px;
+  }
+  .sos-btn {
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    border: none;
+    background: radial-gradient(circle at 30% 30%, #ef4444, #b91c1c);
+    color: #fff;
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    cursor: pointer;
+    margin: 0 auto 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.6);
+    animation: sos-pulse 2s infinite;
+    transition: transform 0.15s;
+    position: relative;
+  }
+  .sos-btn:hover { transform: scale(1.05); }
+  .sos-btn:active { transform: scale(0.95); }
+  .sos-inner {
+    background: rgba(255,255,255,0.15);
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid rgba(255,255,255,0.3);
+  }
+  @keyframes sos-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.6); }
+    70% { box-shadow: 0 0 0 30px rgba(220, 38, 38, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
   }
   .status-icon {
     width: 64px;
@@ -84,6 +121,16 @@
   }
   .btn:hover { background: #1d4ed8; }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary {
+    background: transparent;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+    width: auto;
+    padding: 8px 16px;
+    font-size: 13px;
+    margin-top: 4px;
+  }
+  .btn-secondary:hover { background: #f8fafc; border-color: #cbd5e1; }
   .hidden { display: none; }
   .error-text { color: #dc2626; font-size: 13px; margin-top: 8px; }
   .success-text { color: #16a34a; font-size: 13px; margin-top: 8px; font-weight: 600; }
@@ -94,16 +141,26 @@
   <div class="logo">SAVIOR<span>.</span></div>
   <div class="subtitle">Emergency Location Sharing</div>
 
+  <!-- SOS State (default) -->
+  <div id="sos-state">
+    <button class="sos-btn" id="sos-btn" onclick="triggerGeolocation()">
+      <span class="sos-inner">SOS</span>
+    </button>
+    <h2>Tap to share your location</h2>
+    <p>Emergency responders need your precise location to reach you quickly.</p>
+    <button class="btn btn-secondary" onclick="showManualEntry()">Enter location manually</button>
+  </div>
+
   <!-- Loading State -->
-  <div id="loading-state">
-    <div class="status-icon loading">⟳</div>
+  <div id="loading-state" class="hidden">
+    <div class="status-icon loading">&#x27F3;</div>
     <h2>Requesting your location...</h2>
     <p>Please allow location access when prompted to help emergency responders reach you.</p>
   </div>
 
   <!-- Success State -->
   <div id="success-state" class="hidden">
-    <div class="status-icon success">✓</div>
+    <div class="status-icon success">&#x2713;</div>
     <h2>Location Shared Successfully</h2>
     <p>Your location has been received. Emergency responders are being dispatched to your area.</p>
     <p class="success-text">You can close this page.</p>
@@ -111,9 +168,9 @@
 
   <!-- Error State -->
   <div id="error-state" class="hidden">
-    <div class="status-icon error">✕</div>
+    <div class="status-icon error">&#x2715;</div>
     <h2>Location Access Denied</h2>
-    <p>Please enable location services in your browser settings, or enter your location manually below. The operator will use your reported address as a fallback.</p>
+    <p>Please enable location services in your browser settings, or enter your location manually below.</p>
     <div class="manual-section">
       <h3>Enter Location Manually</h3>
       <div class="input-group">
@@ -124,13 +181,13 @@
         <label for="lng-input">Longitude</label>
         <input type="number" id="lng-input" step="any" placeholder="e.g., 75.1240">
       </div>
-      <button class="btn" id="manual-submit" onclick="submitManualLocation()">Submit Location</button>
+      <button class="btn" onclick="submitManualLocation()">Submit Location</button>
       <p id="manual-error" class="error-text hidden"></p>
     </div>
   </div>
 
   <div id="submitting-state" class="hidden">
-    <div class="status-icon loading">⟳</div>
+    <div class="status-icon loading">&#x27F3;</div>
     <h2>Submitting location...</h2>
   </div>
 </div>
@@ -140,8 +197,33 @@
   const API_BASE = '';
 
   function showState(id) {
-    document.querySelectorAll('#loading-state, #success-state, #error-state, #submitting-state').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('#sos-state, #loading-state, #success-state, #error-state, #submitting-state').forEach(function(el) {
+      el.classList.add('hidden');
+    });
     document.getElementById(id).classList.remove('hidden');
+  }
+
+  function showManualEntry() {
+    document.getElementById('manual-error').classList.add('hidden');
+    showState('error-state');
+  }
+
+  function triggerGeolocation() {
+    if ('geolocation' in navigator) {
+      showState('loading-state');
+      navigator.geolocation.getCurrentPosition(
+        function(position) {
+          submitLocation(position.coords.latitude, position.coords.longitude);
+        },
+        function(error) {
+          console.warn('Geolocation error:', error.message);
+          showState('error-state');
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+      );
+    } else {
+      showState('error-state');
+    }
   }
 
   async function submitLocation(lat, lng) {
@@ -156,14 +238,14 @@
         showState('success-state');
       } else {
         const err = await res.json();
-        document.getElementById('manual-error').textContent = err.detail || 'Failed to submit location. Please try again.';
-        document.getElementById('manual-error').classList.remove('hidden');
         showState('error-state');
+        document.getElementById('manual-error').textContent = err.detail || 'Failed to submit location.';
+        document.getElementById('manual-error').classList.remove('hidden');
       }
     } catch (e) {
-      document.getElementById('manual-error').textContent = 'Network error. Please check your connection and try again.';
-      document.getElementById('manual-error').classList.remove('hidden');
       showState('error-state');
+      document.getElementById('manual-error').textContent = 'Network error. Please check your connection.';
+      document.getElementById('manual-error').classList.remove('hidden');
     }
   }
 
@@ -171,29 +253,12 @@
     const lat = parseFloat(document.getElementById('lat-input').value);
     const lng = parseFloat(document.getElementById('lng-input').value);
     if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      document.getElementById('manual-error').textContent = 'Please enter valid latitude (-90 to 90) and longitude (-180 to 180).';
+      document.getElementById('manual-error').textContent = 'Enter valid latitude (-90 to 90) and longitude (-180 to 180).';
       document.getElementById('manual-error').classList.remove('hidden');
       return;
     }
     document.getElementById('manual-error').classList.add('hidden');
     submitLocation(lat, lng);
-  }
-
-  // Auto-trigger geolocation on page load
-  showState('loading-state');
-  if ('geolocation' in navigator) {
-    navigator.geolocation.getCurrentPosition(
-      function(position) {
-        submitLocation(position.coords.latitude, position.coords.longitude);
-      },
-      function(error) {
-        console.warn('Geolocation error:', error.message);
-        showState('error-state');
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
-    );
-  } else {
-    showState('error-state');
   }
 </script>
 </body>

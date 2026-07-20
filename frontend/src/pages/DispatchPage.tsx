@@ -1,12 +1,14 @@
 import { useEffect, useState, useMemo } from "react"
 import { useSearchParams } from "react-router-dom"
 import { Loader2, RadioTower, MapPin, AlertTriangle, Users, ArrowLeft } from "lucide-react"
+import polyline from "@mapbox/polyline"
 import { useEmergencyFeedContext } from "@/hooks/EmergencyFeedContext"
 import { useDispatch } from "@/hooks/useDispatch"
-import { StationRanking } from "@/components/dispatch/StationRanking"
+import { StationCard } from "@/components/dispatch/StationCard"
 import { RoutePreview } from "@/components/dispatch/RoutePreview"
 import { EscalationTimer } from "@/components/dispatch/EscalationTimer"
 import { ErrorState } from "@/components/common/ErrorState"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { Emergency } from "@/lib/types"
 import "leaflet/dist/leaflet.css"
@@ -94,7 +96,7 @@ function EmergencySelector({ emergencies, onSelect }: { emergencies: Emergency[]
   return (
     <div className="space-y-3">
       <p className="text-xs text-gray-500 font-medium">Select an emergency to begin dispatch</p>
-      {emergencies.filter((e) => e.status === "pending").map((e) => (
+      {emergencies.filter((e) => e.status === "pending" && e.pipeline_status !== "pending_manual_review").map((e) => (
         <div
           key={e.id}
           onClick={() => onSelect(e.id)}
@@ -117,8 +119,8 @@ function EmergencySelector({ emergencies, onSelect }: { emergencies: Emergency[]
           </div>
         </div>
       ))}
-      {emergencies.filter((e) => e.status === "pending").length === 0 && (
-        <p className="text-sm text-gray-400 text-center py-8">No pending emergencies</p>
+      {emergencies.filter((e) => e.status === "pending" && e.pipeline_status !== "pending_manual_review").length === 0 && (
+        <p className="text-sm text-gray-400 text-center py-8">No pending emergencies within Dharwad coverage area</p>
       )}
     </div>
   )
@@ -135,9 +137,10 @@ export function DispatchPage() {
   const autoTrigger = autoParam === "true"
 
   const [selectedStationId, setSelectedStationId] = useState<number | null>(null)
-  const [dispatchRecord, setDispatchRecord] = useState<{ id: number; status: string } | null>(null)
   const [dispatchStartedAt, setDispatchStartedAt] = useState<string | null>(null)
-  const [currentStatus, setCurrentStatus] = useState<"pending_call" | "acknowledged" | "escalated" | "dispatch_failed">("pending_call")
+  const [dispatchRecordId, setDispatchRecordId] = useState<number | null>(null)
+  const [triedStationIds, setTriedStationIds] = useState<number[]>([])
+  const [currentStatus, setCurrentStatus] = useState<"pending_call" | "acknowledged" | "escalated" | "dispatch_failed" | "awaiting_redispatch">("pending_call")
 
   const selectedEmergency = emergencyId != null
     ? emergencies.find((e) => e.id === emergencyId) ?? null
@@ -147,8 +150,9 @@ export function DispatchPage() {
   const selectEmergency = (id: number) => {
     setSearchParams({ emergency_id: String(id) })
     setSelectedStationId(null)
-    setDispatchRecord(null)
+    setDispatchRecordId(null)
     setDispatchStartedAt(null)
+    setTriedStationIds([])
     setCurrentStatus("pending_call")
   }
 
@@ -159,6 +163,13 @@ export function DispatchPage() {
     }
   }, [emergencyId, fetchRankings])
 
+  // Auto-select first station when rankings load
+  useEffect(() => {
+    if (stations.length > 0 && selectedStationId == null) {
+      setSelectedStationId(stations[0].station.id)
+    }
+  }, [stations, selectedStationId])
+
   // Auto-trigger: if auto=true and we have a new emergency
   useEffect(() => {
     if (autoTrigger && emergencyId && emergencies.length > 0) {
@@ -166,16 +177,27 @@ export function DispatchPage() {
     }
   }, [autoTrigger, emergencyId, emergencies])
 
-  // Handle dispatch confirmation
+  // Handle dispatch confirmation — creates DispatchRecord, waits for ACK
   const handleConfirmDispatch = async (stationId: number) => {
     if (emergencyId == null) return
     const result = await confirmDispatch(emergencyId, stationId)
     if (result) {
-      setDispatchRecord({ id: result.dispatch_id, status: result.status })
+      setTriedStationIds((prev) => [...prev, stationId])
+      setDispatchRecordId(result.dispatch_id)
       setDispatchStartedAt(new Date().toISOString())
       setCurrentStatus("pending_call")
     }
   }
+
+
+  // Sync local ACK status from WebSocket dispatch_update events
+  useEffect(() => {
+    if (!selectedEmergency) return
+    const ps = selectedEmergency.pipeline_status
+    if (ps === "acknowledged" || ps === "escalated" || ps === "dispatch_failed" || ps === "awaiting_redispatch") {
+      setCurrentStatus(ps as typeof currentStatus)
+    }
+  }, [selectedEmergency?.pipeline_status])
 
   // Decode route coords from selected station
   const selectedRanking = selectedStationId != null
@@ -189,20 +211,15 @@ export function DispatchPage() {
 
     // Decode polyline from server response
     let routeCoords: [number, number][] = []
-    try {
-      if (selectedRanking.encoded_polyline) {
-        const polyData = selectedRanking.encoded_polyline
-        // Server returns array of coords or encoded string
-        if (typeof polyData === "string") {
-          // Try parsing as JSON array first
-          const parsed = JSON.parse(polyData)
-          if (Array.isArray(parsed) && parsed.length > 0 && Array.isArray(parsed[0])) {
-            routeCoords = parsed as [number, number][]
-          }
+    if (selectedRanking.encoded_polyline) {
+      try {
+        const decoded = polyline.decode(selectedRanking.encoded_polyline) as [number, number][]
+        if (decoded.length > 0) {
+          routeCoords = decoded
         }
+      } catch {
+        // Fallback to straight line
       }
-    } catch {
-      // Fallback to straight line
     }
 
     return {
@@ -212,13 +229,23 @@ export function DispatchPage() {
       distanceKm: selectedRanking.distance_km,
       etaMinutes: selectedRanking.eta_minutes,
       stationName: selectedRanking.station.name,
+      emergency: {
+        callerName: selectedEmergency.caller_name,
+        type: selectedEmergency.emergency_type,
+        severity: selectedEmergency.severity,
+        location: selectedEmergency.location,
+        victims: selectedEmergency.victims,
+        description: selectedEmergency.description,
+        status: selectedEmergency.status,
+      },
+      station: {
+        name: selectedRanking.station.name,
+        address: selectedRanking.station.address,
+        phone: selectedRanking.station.phone,
+        type: selectedRanking.station.type,
+      },
     }
   }, [selectedRanking, selectedEmergency])
-
-  // Find the dispatched station ranking for route preview after dispatch
-  const dispatchedStationRanking = dispatchRecord
-    ? stations.find((s) => s.station.id === selectedStationId) ?? null
-    : null
 
   // Render
   return (
@@ -240,130 +267,229 @@ export function DispatchPage() {
         )}
       </div>
 
-      <div className="flex gap-4 h-[calc(100%-3.5rem)]">
-        {/* Left panel */}
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+      <div className="flex gap-4 h-[calc(100%-3.5rem)] relative">
+        {/* Left panel — Cards (30%) */}
+        <div className="w-[30%] flex flex-col min-h-0 pb-16">
           {!emergencyId ? (
-            /* No emergency selected — show list */
-            <EmergencySelector
-              emergencies={emergencies}
-              onSelect={selectEmergency}
-            />
+            <div className="overflow-y-auto space-y-4 pr-1 flex-1 min-h-0">
+              <EmergencySelector
+                emergencies={emergencies}
+                onSelect={selectEmergency}
+              />
+            </div>
           ) : !selectedEmergency ? (
-            /* Emergency not found in feed */
             <ErrorState
               title="Emergency not found"
               description="The selected emergency could not be loaded."
             />
           ) : (
-            <>
-              {/* Emergency info card */}
-              <EmergencyInfoCard emergency={selectedEmergency} />
+            <div className="flex flex-col flex-1 min-h-0">
+              {/* Scrollable content */}
+              <div className="overflow-y-auto space-y-4 pr-1 flex-1 min-h-0">
+                <EmergencyInfoCard emergency={selectedEmergency} />
 
-              {/* Pipeline status banners */}
-              {selectedEmergency.pipeline_status === "pending_manual_review" && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                  <div className="flex items-center gap-2 text-sm font-bold text-amber-800 mb-1">
-                    <AlertTriangle className="size-4" /> Outside Coverage Area
+                {selectedEmergency.pipeline_status === "pending_manual_review" && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <div className="flex items-center gap-2 text-sm font-bold text-amber-800 mb-1">
+                      <AlertTriangle className="size-4" /> Outside Coverage Area
+                    </div>
+                    <p className="text-xs text-amber-700">This emergency is outside our district boundary. Manual review required before dispatch.</p>
                   </div>
-                  <p className="text-xs text-amber-700">This emergency is outside our district boundary. Manual review required before dispatch.</p>
-                </div>
-              )}
-              {selectedEmergency.pipeline_status === "duplicate_found" && (
-                <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
-                  <div className="flex items-center gap-2 text-sm font-bold text-orange-800 mb-1">
-                    <AlertTriangle className="size-4" /> Duplicate Emergency
+                )}
+                {selectedEmergency.pipeline_status === "duplicate_found" && (
+                  <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
+                    <div className="flex items-center gap-2 text-sm font-bold text-orange-800 mb-1">
+                      <AlertTriangle className="size-4" /> Duplicate Emergency
+                    </div>
+                    <p className="text-xs text-orange-700">This incident matches a recent emergency at the same location. Review before proceeding.</p>
                   </div>
-                  <p className="text-xs text-orange-700">This incident matches a recent emergency at the same location. Review before proceeding.</p>
-                </div>
-              )}
+                )}
 
-              {/* Station ranking */}
-              {dispatchState === "idle" || dispatchState === "loading_rankings" ? (
-                <div>
-                  <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-                    <Loader2 className="size-4 animate-spin" /> Finding nearest stations...
-                  </h3>
-                  <StationRanking
-                    stations={[]}
-                    loading={true}
-                    error={null}
-                    selectedStationId={null}
-                    onSelectStation={() => {}}
-                    onConfirmDispatch={() => {}}
-                    dispatchInProgress={false}
+                {/* Station ranking list */}
+                {/* Case 1: Loading */}
+                {dispatchState === "idle" || dispatchState === "loading_rankings" ? (
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                      <Loader2 className="size-4 animate-spin" /> Finding nearest stations...
+                    </h3>
+                    <div className="space-y-3 animate-pulse">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <div key={i} className="rounded-xl border border-gray-200 bg-white p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="size-7 rounded-full bg-gray-200" />
+                            <div className="h-4 w-36 bg-gray-200 rounded" />
+                            <div className="ml-auto h-5 w-16 bg-gray-200 rounded" />
+                          </div>
+                          <div className="space-y-2 pl-9">
+                            <div className="h-3 w-48 bg-gray-200 rounded" />
+                            <div className="h-3 w-32 bg-gray-200 rounded" />
+                            <div className="h-3 w-40 bg-gray-200 rounded" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) /* Case 2: Ready (first dispatch or re-dispatch after timeout) */ : (
+                  dispatchState === "ready" || (dispatchState === "dispatched" && currentStatus === "awaiting_redispatch")
+                ) ? (
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900 mb-3">
+                      Ranked Stations ({stations.length})
+                    </h3>
+                    {currentStatus === "awaiting_redispatch" && (
+                      <div className="rounded-xl border border-red-200 bg-red-50 p-3 mb-3">
+                        <p className="text-sm font-bold text-red-800">Station did not respond</p>
+                        <p className="text-xs text-red-600 mt-0.5">Select another station to dispatch</p>
+                      </div>
+                    )}
+                    <div className="space-y-3">
+                      {stations.map((ranking, idx) => {
+                        const stationTried = triedStationIds.includes(ranking.station.id)
+                        return (
+                          <div
+                            key={ranking.station.id}
+                            onClick={() => !stationTried && setSelectedStationId(ranking.station.id)}
+                          >
+                            <StationCard
+                              ranking={ranking}
+                              rank={idx + 1}
+                              isSelected={ranking.station.id === selectedStationId}
+                              onSelect={() => !stationTried && setSelectedStationId(ranking.station.id)}
+                              disabled={stationTried}
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) /* Case 3: Dispatching / dispatched (grayed out) */ : (
+                  dispatchState === "dispatching" || dispatchState === "dispatched"
+                ) ? (
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900 mb-3">
+                      Ranked Stations ({stations.length})
+                    </h3>
+                    <div className="space-y-3 opacity-60">
+                      {stations.map((ranking, idx) => (
+                        <StationCard
+                          key={ranking.station.id}
+                          ranking={ranking}
+                          rank={idx + 1}
+                          isSelected={ranking.station.id === selectedStationId}
+                          onSelect={() => {}}
+                          disabled={true}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) /* Case 4: Failed */ : dispatchState === "failed" ? (
+                  <ErrorState
+                    title="Dispatch Error"
+                    description={error || "Failed to process dispatch. Please try again."}
+                    onRetry={() => emergencyId && fetchRankings(emergencyId)}
                   />
-                </div>
-              ) : dispatchState === "ready" || dispatchState === "dispatching" || dispatchState === "dispatched" ? (
-                <div>
-                  <h3 className="text-sm font-bold text-gray-900 mb-3">
-                    Ranked Stations ({stations.length})
-                  </h3>
-                  <StationRanking
-                    stations={stations}
-                    loading={false}
-                    error={null}
-                    selectedStationId={selectedStationId}
-                    onSelectStation={setSelectedStationId}
-                    onConfirmDispatch={handleConfirmDispatch}
-                    dispatchInProgress={dispatchState === "dispatching"}
-                  />
-                </div>
-              ) : dispatchState === "failed" ? (
-                <ErrorState
-                  title="Dispatch Error"
-                  description={error || "Failed to process dispatch. Please try again."}
-                  onRetry={() => emergencyId && fetchRankings(emergencyId)}
-                />
-              ) : null}
-            </>
+                ) : null}
+              </div>
+
+            </div>
           )}
         </div>
 
-        {/* Right panel — Route preview + Escalation timer */}
-        <div className="w-[400px] shrink-0 space-y-4">
-          {/* Route preview */}
-          {routePreviewProps && (
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 mb-2">Route Preview</h3>
-              <RoutePreview {...routePreviewProps} />
+        {/* Dispatch button — floating at bottom of left column */}
+        {emergencyId && selectedEmergency && dispatchState === "ready" && (
+          <div className="absolute bottom-0 left-0 w-[30%] p-3">
+            <Button
+              onClick={() => handleConfirmDispatch(selectedStationId!)}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg"
+            >
+              Dispatch to Selected Station
+            </Button>
+          </div>
+        )}
+        {emergencyId && selectedEmergency && dispatchState === "dispatching" && (
+          <div className="absolute bottom-0 left-0 w-[30%] p-3">
+            <Button disabled className="w-full bg-blue-600 text-white font-bold shadow-lg opacity-75">
+              <Loader2 className="size-4 mr-2 animate-spin" />
+              Dispatching...
+            </Button>
+          </div>
+        )}
+        {emergencyId && selectedEmergency && dispatchState === "dispatched" && currentStatus === "pending_call" && (
+          <div className="absolute bottom-0 left-0 w-[30%] p-3">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-center shadow-sm">
+              <p className="text-sm font-bold text-amber-800">Awaiting Station ACK</p>
+              <p className="text-xs text-amber-600 mt-0.5">Waiting for station to acknowledge dispatch...</p>
+            </div>
+          </div>
+        )}
+        {emergencyId && selectedEmergency && dispatchState === "dispatched" && currentStatus === "acknowledged" && (
+          <div className="absolute bottom-0 left-0 w-[30%] p-3">
+            <div className="rounded-xl border border-green-300 bg-green-100 p-3 text-center shadow-sm">
+              <p className="text-sm font-bold text-green-800">✓ Dispatch Complete</p>
+              <p className="text-xs text-green-600 mt-0.5">Station acknowledged the dispatch</p>
+            </div>
+          </div>
+        )}
+        {emergencyId && selectedEmergency && dispatchState === "dispatched" && currentStatus === "awaiting_redispatch" && (
+          <div className="absolute bottom-0 left-0 w-[30%] p-3 space-y-2">
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center shadow-sm">
+              <p className="text-sm font-bold text-red-800">Station did not respond</p>
+              <p className="text-xs text-red-600 mt-0.5">Select another station below</p>
+            </div>
+            <Button
+              onClick={() => selectedStationId && handleConfirmDispatch(selectedStationId)}
+              disabled={!selectedStationId}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg"
+            >
+              Dispatch to Next Station
+            </Button>
+          </div>
+        )}
+        {emergencyId && selectedEmergency && dispatchState === "dispatched" && (currentStatus === "escalated" || currentStatus === "dispatch_failed") && (
+          <div className="absolute bottom-0 left-0 w-[30%] p-3">
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center shadow-sm">
+              <p className="text-sm font-bold text-red-800">
+                {currentStatus === "escalated" ? "Escalated to Next Station" : "Dispatch Failed"}
+              </p>
+              <p className="text-xs text-red-600 mt-0.5">
+                {currentStatus === "escalated" ? "Station did not respond — next station will be called" : "All stations exhausted — manual dispatch required"}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Right panel — Map (70%) */}
+        <div className="flex-1 flex flex-col h-full gap-4">
+          {/* Route preview — shown before dispatch */}
+          {routePreviewProps && !(dispatchState === "dispatched" && currentStatus === "acknowledged") && (
+            <div className="flex-1 min-h-0 flex flex-col">
+              <h3 className="text-sm font-bold text-gray-900 mb-2 shrink-0">Route Preview</h3>
+              <div className="flex-1 min-h-0">
+                <RoutePreview {...routePreviewProps} />
+              </div>
             </div>
           )}
 
-          {/* After dispatch: show route to dispatched station */}
-          {dispatchState === "dispatched" && dispatchedStationRanking && selectedEmergency?.latitude && selectedEmergency?.longitude && (
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 mb-2">Dispatched Route</h3>
-              <RoutePreview
-                routeCoords={[]}
-                origin={[selectedEmergency.latitude, selectedEmergency.longitude]}
-                destination={[dispatchedStationRanking.station.latitude, dispatchedStationRanking.station.longitude]}
-                distanceKm={dispatchedStationRanking.distance_km}
-                etaMinutes={dispatchedStationRanking.eta_minutes}
-                stationName={dispatchedStationRanking.station.name}
-              />
-            </div>
-          )}
-
-          {/* Escalation timer */}
+          {/* After dispatch: show ACK status */}
           {dispatchStartedAt && (
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 mb-2">Dispatch Status</h3>
-              <EscalationTimer
-                startedAt={dispatchStartedAt}
-                timeoutSeconds={120}
-                onTimeout={() => {
-                  // Auto-scroll or play sound on timeout
-                  setCurrentStatus("escalated")
-                }}
-                status={currentStatus}
-              />
+            <div className="flex-1 flex flex-col items-center justify-center">
+              <div className="shrink-0 w-full max-w-sm">
+                <h3 className="text-sm font-bold text-gray-900 mb-2">Dispatch Status</h3>
+                <EscalationTimer
+                  startedAt={dispatchStartedAt}
+                  timeoutSeconds={600}
+                  onTimeout={() => {
+                    setCurrentStatus("awaiting_redispatch")
+                  }}
+                  status={currentStatus}
+                />
+              </div>
             </div>
           )}
 
           {/* Dispatch tips */}
           {!emergencyId && (
-            <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+            <div className="shrink-0 rounded-xl border border-blue-100 bg-blue-50 p-4">
               <div className="flex items-center gap-2 mb-1">
                 <RadioTower className="size-4 text-blue-600" />
                 <h3 className="text-sm font-bold text-blue-800">Dispatch Tips</h3>

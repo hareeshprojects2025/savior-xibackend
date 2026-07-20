@@ -40,7 +40,7 @@ export function StationCard({ ranking, rank, isSelected, onSelect, disabled }: S
           </span>
           <h3 className="text-sm font-bold text-gray-900">{station.name}</h3>
         </div>
-        <span className={cn("px-2 py-0.5 text-[11px] font-bold rounded border", typeInfo.bg, typeInfo.text, typeInfo.border)}>
+        <span className={cn("px-2 py-0.5 text-xs font-bold rounded border", typeInfo.bg, typeInfo.text, typeInfo.border)}>
           {typeInfo.label}
         </span>
       </div>

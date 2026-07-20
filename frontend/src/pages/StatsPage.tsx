@@ -9,10 +9,16 @@ export function StatsPage() {
   const [period, setPeriod] = useState<"Today" | "Week" | "Month" | "Year" | "5 Year">("Today")
   const { fetchStats, loading, error } = useApi()
 
-  const periodDays: Record<string, number | undefined> = { Today: 1, Week: 7, Month: 30, Year: 365, "5 Year": 1825 }
+  const periodParams: Record<string, { days?: number; today?: boolean }> = {
+    Today: { today: true },
+    Week: { days: 7 },
+    Month: { days: 30 },
+    Year: { days: 365 },
+    "5 Year": { days: 1825 },
+  }
 
   useEffect(() => {
-    fetchStats(periodDays[period]).then(setStats)
+    fetchStats(periodParams[period]).then(setStats)
   }, [fetchStats, period])
 
   return (
@@ -55,7 +61,7 @@ export function StatsPage() {
         stats={stats}
         loading={loading}
         error={error}
-        onRetry={() => fetchStats(periodDays[period]).then(setStats)}
+        onRetry={() => fetchStats(periodParams[period]).then(setStats)}
       />
     </div>
   )

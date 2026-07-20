@@ -83,7 +83,7 @@ function EmergencyPopup({ emergency, onViewDetails }: { emergency: Emergency; on
       {emergency.caller_name && <p className="text-gray-500 text-xs">Caller: {emergency.caller_name}</p>}
       {emergency.victims != null && <p className="text-gray-500 text-xs">Victims: {emergency.victims}</p>}
       {emergency.description && <p className="text-gray-500 text-xs mt-1 line-clamp-2">{emergency.description}</p>}
-      <p className="text-gray-400 text-[10px] mt-1.5">{time}</p>
+      <p className="text-gray-400 text-xs mt-1.5">{time}</p>
       {onViewDetails && (
         <button onClick={onViewDetails} className="mt-2 w-full px-2 py-1 bg-blue-600 text-white text-xs font-semibold rounded hover:bg-blue-700">View Details</button>
       )}

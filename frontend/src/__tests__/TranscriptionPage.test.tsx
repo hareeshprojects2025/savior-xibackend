@@ -16,7 +16,9 @@ const mockEmergencies: Emergency[] = [
     landmark: null, victims: 2, description: "Building fire",
     immediate_danger: "Yes", summary: null,
     latitude: 19.076, longitude: 72.8777,
-    status: "pending", full_transcript: null, created_at: new Date().toISOString(),
+    status: "pending", full_transcript: null,
+    bolna_call_id: null, location_captured: null, district_check: null, pipeline_status: null, dispatch_record_id: null,
+    created_at: new Date().toISOString(),
   },
   {
     id: 2, caller_name: "Jane", caller_phone: "555-0200", victim_name: null,
@@ -24,7 +26,9 @@ const mockEmergencies: Emergency[] = [
     landmark: null, victims: 1, description: null,
     immediate_danger: null, summary: null,
     latitude: 19.1, longitude: 72.9,
-    status: "resolved", full_transcript: null, created_at: new Date(Date.now() - 3600000).toISOString(),
+    status: "resolved", full_transcript: null,
+    bolna_call_id: null, location_captured: null, district_check: null, pipeline_status: null, dispatch_record_id: null,
+    created_at: new Date(Date.now() - 3600000).toISOString(),
   },
 ]
 

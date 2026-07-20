@@ -11,7 +11,7 @@ interface MapFilterProps {
 
 const ALL_STATUSES: EmergencyStatus[] = ["pending", "dispatched", "en_route", "resolved"]
 
-const ALL_SEVERITIES: Severity[] = ["Critical", "High", "Medium", "Low"]
+const ALL_SEVERITIES = ["Critical", "High", "Medium", "Low"] as const
 
 const STATUS_COLORS: Record<EmergencyStatus, string> = {
   pending: "bg-amber-400", dispatched: "bg-blue-500", en_route: "bg-indigo-500", resolved: "bg-green-500",

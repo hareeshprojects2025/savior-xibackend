@@ -1,9 +1,16 @@
+import asyncio
 import logging
 import time
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from app.core.config import BOLNA_API_TOKEN, BOLNA_AGENT_ID, BASE_URL
+import httpx
+
+from app.core.config import BOLNA_API_TOKEN, BOLNA_AGENT_ID, BOLNA_DISPATCH_AGENT_ID, BASE_URL
+
+MAX_RING_SECONDS = 30
+POLL_INTERVAL = 5
+STUCK_STATUSES = {"queued", "initiated", "ringing"}
 
 logger = logging.getLogger("savior.message")
 
@@ -69,11 +76,17 @@ class BolnaMessageService(MessageService):
         webhook_base: str = "",
     ):
         self.api_token = api_token or BOLNA_API_TOKEN
-        self.agent_id = agent_id or BOLNA_AGENT_ID
+        self.agent_id = agent_id or BOLNA_DISPATCH_AGENT_ID
         self.webhook_base = webhook_base or BASE_URL
         self._ack_results: dict[str, str] = {}
+        self._execution_ids: dict[str, str] = {}
 
     async def send_dispatch(self, station_phone: str, incident: dict) -> str | None:
+        # Normalize phone: strip whitespace/dashes, ensure + prefix
+        station_phone = station_phone.strip().replace("-", "")
+        if not station_phone.startswith("+"):
+            station_phone = f"+{station_phone}"
+
         if not self.api_token or not self.agent_id:
             logger.warning("BOLNA_API_TOKEN or BOLNA_AGENT_ID not set — falling back to simulated dispatch")
             # Fall back to simulated behavior
@@ -88,9 +101,14 @@ class BolnaMessageService(MessageService):
             "bypass_call_guardrails": True,
             "user_data": {
                 "emergency_id": incident.get("emergency_id"),
+                "dispatch_record_id": incident.get("dispatch_record_id"),
                 "incident_type": incident.get("emergency_type", ""),
                 "location": incident.get("location", ""),
                 "description": incident.get("description", ""),
+                "severity": incident.get("severity", ""),
+                "victims": incident.get("victims", ""),
+                "caller_name": incident.get("caller_name", ""),
+                "summary": incident.get("summary", ""),
             },
         }
         headers = {
@@ -98,7 +116,6 @@ class BolnaMessageService(MessageService):
             "Content-Type": "application/json",
         }
         try:
-            import httpx
             async with httpx.AsyncClient() as client:
                 resp = await client.post(
                     "https://api.bolna.ai/call",
@@ -109,7 +126,15 @@ class BolnaMessageService(MessageService):
                 resp.raise_for_status()
                 result = resp.json()
                 call_id = result.get("call_id") or result.get("id", f"bolna_{int(time.time())}")
-                logger.info("Bolna outbound call placed: call_id=%s, station=%s", call_id, station_phone)
+                execution_id = result.get("execution_id") or call_id
+                logger.info("Bolna outbound call placed: call_id=%s, execution_id=%s, station=%s", call_id, execution_id, station_phone)
+
+                # Fire background watchdog to stop stuck calls
+                status = result.get("status", "")
+                if status in STUCK_STATUSES:
+                    self._execution_ids[call_id] = execution_id
+                    asyncio.create_task(self._watch_and_kill(call_id, execution_id))
+
                 return call_id
         except Exception as e:
             logger.error("Bolna outbound call failed for %s: %s", station_phone, e)
@@ -122,6 +147,41 @@ class BolnaMessageService(MessageService):
         if call_id.startswith("sim_"):
             return "acknowledged"
         return self._ack_results.get(call_id)
+
+    async def _watch_and_kill(self, call_id: str, execution_id: str):
+        """Poll execution status; stop the call if stuck in queued/initiated/ringing too long."""
+        url = f"https://api.bolna.ai/executions/{execution_id}"
+        stop_url = f"https://api.bolna.ai/call/{execution_id}/stop"
+        headers = {"Authorization": f"Bearer {self.api_token}"}
+        elapsed = 0
+
+        while elapsed < MAX_RING_SECONDS:
+            try:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.get(url, headers=headers, timeout=10)
+                    if resp.is_success:
+                        data = resp.json()
+                        status = data.get("call_status", data.get("status", "unknown"))
+                        if status not in STUCK_STATUSES:
+                            logger.info("Call %s moved past stuck state → %s", call_id, status)
+                            return
+            except Exception:
+                pass
+
+            await asyncio.sleep(POLL_INTERVAL)
+            elapsed += POLL_INTERVAL
+
+        # Timeout — stop the call
+        logger.warning("Call %s stuck in ringing/queued for %ds — stopping", call_id, MAX_RING_SECONDS)
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(stop_url, headers=headers, timeout=10)
+                if resp.is_success:
+                    logger.info("Call %s stopped successfully", call_id)
+                else:
+                    logger.warning("Failed to stop call %s: %s", call_id, resp.status_code)
+        except Exception as e:
+            logger.warning("Failed to stop call %s: %s", call_id, e)
 
     def process_webhook(self, call_id: str, ack_status: str) -> bool:
         """Store ACK result from Bolna webhook for polling by get_ack_status."""

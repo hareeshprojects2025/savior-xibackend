@@ -95,6 +95,18 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
             }
             break
 
+          case "location_received":
+            if (msg.emergency_id && msg.latitude != null && msg.longitude != null) {
+              setEmergencies((prev) =>
+                prev.map((e) =>
+                  e.id === msg.emergency_id
+                    ? { ...e, latitude: msg.latitude, longitude: msg.longitude, location_captured: true }
+                    : e
+                )
+              )
+            }
+            break
+
           case "status_update":
             if (msg.emergency_id && msg.status) {
               setEmergencies((prev) =>
@@ -131,16 +143,58 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
             }
             break
 
+          case "dispatch_update":
+            if (msg.emergency_id) {
+              setEmergencies((prev) =>
+                prev.map((e) =>
+                  e.id === msg.emergency_id
+                    ? {
+                        ...e,
+                        status: msg.dispatch_status === "acknowledged" ? "dispatched" : e.status,
+                        pipeline_status: msg.dispatch_status || e.pipeline_status,
+                      }
+                    : e
+                )
+              )
+            }
+            break
+
+          case "dispatch_escalated":
+            if (msg.emergency_id) {
+              setEmergencies((prev) =>
+                prev.map((e) =>
+                  e.id === msg.emergency_id
+                    ? { ...e, pipeline_status: "escalated" }
+                    : e
+                )
+              )
+            }
+            break
+
+          case "dispatch_failed":
+            if (msg.emergency_id) {
+              setEmergencies((prev) =>
+                prev.map((e) =>
+                  e.id === msg.emergency_id
+                    ? { ...e, pipeline_status: "dispatch_failed" }
+                    : e
+                )
+              )
+            }
+            break
+
           case "transcript_complete":
             break
 
           case "live_transcript":
             if (msg.session_id && msg.transcript_text) {
+              const sid = msg.session_id
+              const text = msg.transcript_text
               setActiveSessions((prev) => ({
                 ...prev,
-                [msg.session_id!]: {
-                  session_id: msg.session_id,
-                  transcript_text: msg.transcript_text,
+                [sid]: {
+                  session_id: sid,
+                  transcript_text: text,
                   speaker: msg.speaker || "caller",
                   emergency_type: msg.emergency_type_detected || "",
                   updated_at: Date.now(),
@@ -229,7 +283,7 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
   const prefetch = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch("/api/emergencies/recent?limit=50")
+      const res = await fetch("/api/emergencies/recent?limit=50&in_coverage=true")
       if (res.ok) {
         const data: Emergency[] = await res.json()
         setEmergencies((prev) => {

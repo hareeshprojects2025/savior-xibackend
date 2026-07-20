@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import extract, func
@@ -8,28 +10,59 @@ from app.schemas.emergency import EmergencyCreate, EmergencyUpdate, EmergencySta
 from app.core.websocket import manager
 from app.services.geocoding_service import geocode_location
 
+logger = logging.getLogger("savior.emergency")
 
-async def create_emergency(db: Session, data: EmergencyCreate) -> Emergency:
+
+async def create_emergency(db: Session, data: EmergencyCreate, background_geocode: bool = False) -> Emergency:
     record = Emergency(**data.model_dump())
     db.add(record)
     db.commit()
     db.refresh(record)
-    if record.latitude is None and record.longitude is None and record.location:
-        coords = await geocode_location(record.location, record.landmark)
-        if coords:
-            record.latitude, record.longitude = coords
-            db.commit()
-            db.refresh(record)
 
-    # Fire-and-forget dispatch pipeline trigger (D-06, D-20)
-    try:
-        from app.services.dispatch_service import auto_trigger_dispatch_pipeline
-        await auto_trigger_dispatch_pipeline(db, record)
-    except Exception as e:
-        logger = __import__("logging").getLogger("savior.emergency")
-        logger.error("Dispatch pipeline trigger failed for emergency %d: %s", record.id, e)
+    if background_geocode:
+        # Fire-and-forget geocoding + pipeline (returns immediately)
+        asyncio.create_task(_geocode_and_pipeline(record.id, data.location, data.landmark))
+    else:
+        # Sync mode: geocode then pipeline
+        if record.latitude is None and record.longitude is None and record.location:
+            coords = await geocode_location(record.location, record.landmark)
+            if coords:
+                record.latitude, record.longitude = coords
+                db.commit()
+                db.refresh(record)
+
+        try:
+            from app.services.dispatch_service import auto_trigger_dispatch_pipeline
+            await auto_trigger_dispatch_pipeline(db, record)
+        except Exception as e:
+            logger.error("Dispatch pipeline trigger failed for emergency %d: %s", record.id, e)
 
     return record
+
+
+async def _geocode_and_pipeline(emergency_id: int, location: str, landmark: str | None) -> None:
+    """Background task: geocode and run pipeline for a newly created emergency."""
+    from app.core.database import SessionLocal
+    from app.services.dispatch_service import auto_trigger_dispatch_pipeline
+
+    try:
+        coords = await geocode_location(location, landmark)
+        db = SessionLocal()
+        try:
+            record = db.query(Emergency).filter(Emergency.id == emergency_id).first()
+            if not record:
+                logger.warning("Emergency %d not found for background geocoding", emergency_id)
+                return
+            if coords:
+                record.latitude, record.longitude = coords
+                db.commit()
+                db.refresh(record)
+
+            await auto_trigger_dispatch_pipeline(db, record)
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error("Background geocode/pipeline failed for emergency %d: %s", emergency_id, e)
 
 
 def get_emergencies(db: Session) -> list[Emergency]:
@@ -40,14 +73,11 @@ def get_emergency(db: Session, emergency_id: int) -> Emergency | None:
     return db.query(Emergency).filter(Emergency.id == emergency_id).first()
 
 
-def get_recent_emergencies(db: Session, limit: int = 10, offset: int = 0) -> list[Emergency]:
-    return (
-        db.query(Emergency)
-        .order_by(Emergency.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+def get_recent_emergencies(db: Session, limit: int = 10, offset: int = 0, in_coverage: bool = False) -> list[Emergency]:
+    q = db.query(Emergency).order_by(Emergency.created_at.desc())
+    if in_coverage:
+        q = q.filter(Emergency.pipeline_status != "pending_manual_review")
+    return q.offset(offset).limit(limit).all()
 
 
 def get_emergencies_by_severity(db: Session, severity: str) -> list[Emergency]:
@@ -97,9 +127,15 @@ def get_mass_casualty_emergencies(db: Session, min_victims: int = 10) -> list[Em
     )
 
 
-def get_emergency_stats(db: Session, days: int | None = None) -> dict:
+def get_emergency_stats(db: Session, days: int | None = None, today: bool = False) -> dict:
     q = db.query(Emergency)
-    if days is not None:
+    if today:
+        IST_OFFSET = timedelta(hours=5, minutes=30)
+        now_ist = datetime.now(timezone.utc) + IST_OFFSET
+        today_start_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_start_utc = today_start_ist - IST_OFFSET
+        q = q.filter(Emergency.created_at >= today_start_utc)
+    elif days is not None:
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         q = q.filter(Emergency.created_at >= cutoff)
 

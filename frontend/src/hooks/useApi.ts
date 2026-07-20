@@ -41,11 +41,15 @@ export function useApi() {
     }
   }, [])
 
-  const fetchStats = useCallback(async (days?: number): Promise<EmergencyStats | null> => {
+  const fetchStats = useCallback(async (params: { days?: number; today?: boolean } = {}): Promise<EmergencyStats | null> => {
     setLoading(true)
     setError(null)
     try {
-      const url = days ? `/api/emergencies/stats?days=${days}` : "/api/emergencies/stats"
+      const search = new URLSearchParams()
+      if (params.today) search.set("today", "true")
+      else if (params.days) search.set("days", String(params.days))
+      const qs = search.toString()
+      const url = qs ? `/api/emergencies/stats?${qs}` : "/api/emergencies/stats"
       const res = await fetch(url)
       if (!res.ok) throw new Error("Failed to fetch stats")
       return await res.json()

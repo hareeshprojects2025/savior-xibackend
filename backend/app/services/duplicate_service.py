@@ -16,21 +16,20 @@ def check_duplicate(
     location: str,
     emergency_type: str,
     created_at: datetime,
+    exclude_id: int | None = None,
 ) -> Emergency | None:
     """Check for duplicate emergencies: same location string + same type + within 1-hour window.
     Returns the first matching Emergency record or None."""
     window_start = created_at - timedelta(hours=1)
-    match = (
-        db.query(Emergency)
-        .filter(
-            func.lower(Emergency.location) == location.lower(),
-            func.lower(Emergency.emergency_type) == emergency_type.lower(),
-            Emergency.created_at >= window_start,
-            Emergency.created_at <= created_at,
-        )
-        .order_by(Emergency.created_at.desc())
-        .first()
+    q = db.query(Emergency).filter(
+        func.lower(Emergency.location) == location.lower(),
+        func.lower(Emergency.emergency_type) == emergency_type.lower(),
+        Emergency.created_at >= window_start,
+        Emergency.created_at < created_at,
     )
+    if exclude_id is not None:
+        q = q.filter(Emergency.id != exclude_id)
+    match = q.order_by(Emergency.created_at.desc()).first()
     if match:
         logger.info(
             "Duplicate found: emergency %d matches location='%s', type='%s', within 1h window",
@@ -70,9 +69,10 @@ def is_duplicate(
     location: str,
     emergency_type: str,
     created_at: Optional[datetime] = None,
+    exclude_id: Optional[int] = None,
 ) -> tuple[bool, Emergency | None]:
     """Combined check: returns (is_duplicate, existing_record) for use in dispatch pipeline."""
     if created_at is None:
         created_at = datetime.now(timezone.utc)
-    match = check_duplicate(db, location, emergency_type, created_at)
+    match = check_duplicate(db, location, emergency_type, created_at, exclude_id=exclude_id)
     return (match is not None, match)

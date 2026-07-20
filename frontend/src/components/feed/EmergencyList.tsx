@@ -42,7 +42,7 @@ export function EmergencyList({
   }
 
   return (
-    <div className="space-y-2.5">
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
       {emergencies.map((emergency) => (
         <EmergencyCard
           key={emergency.id}

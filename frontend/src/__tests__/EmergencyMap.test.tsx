@@ -30,7 +30,9 @@ const mockEmergencies: Emergency[] = [
     landmark: null, victims: 2, description: null,
     immediate_danger: "Yes", summary: null,
     latitude: 19.076, longitude: 72.8777,
-    status: "pending", full_transcript: null, created_at: new Date().toISOString(),
+    status: "pending", full_transcript: null,
+    bolna_call_id: null, location_captured: null, district_check: null, pipeline_status: null, dispatch_record_id: null,
+    created_at: new Date().toISOString(),
   },
 ]
 

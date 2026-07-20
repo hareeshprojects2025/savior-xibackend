@@ -34,7 +34,8 @@ def _load_graph():
     try:
         import osmnx as ox
         logger.info("Downloading OSMnx graph for Hubli-Dharwad, India...")
-        G = ox.graph_from_place("Hubli-Dharwad, India", network_type="drive")
+        G = ox.graph_from_place("Dharwad district, Karnataka, India", network_type="drive")
+        G = ox.add_edge_speeds(G)
         G = ox.add_edge_travel_times(G)
         os.makedirs(os.path.dirname(GRAPHML_PATH), exist_ok=True)
         ox.save_graphml(G, GRAPHML_PATH)

@@ -42,7 +42,7 @@ async def geocode_existing(db: Session = Depends(get_db)):
 
 @router.post("/emergency", response_model=EmergencyResponse)
 async def report_emergency(data: EmergencyCreate, db: Session = Depends(get_db)):
-    record = await create_emergency(db, data)
+    record = await create_emergency(db, data, background_geocode=True)
     await manager.broadcast({
         "type": "new_emergency",
         "data": EmergencyOut.model_validate(record).model_dump(),
@@ -62,17 +62,19 @@ def list_emergencies(db: Session = Depends(get_db)):
 def list_recent_emergencies(
     limit: int = Query(10, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    in_coverage: bool = Query(False, description="Filter to only in-coverage-area emergencies"),
     db: Session = Depends(get_db),
 ):
-    return get_recent_emergencies(db, limit=limit, offset=offset)
+    return get_recent_emergencies(db, limit=limit, offset=offset, in_coverage=in_coverage)
 
 
 @router.get("/emergencies/stats", response_model=EmergencyStats)
 def list_stats(
     days: Optional[int] = Query(None, ge=1, description="Only include emergencies from the last N days"),
+    today: bool = Query(False, description="Filter to current calendar date (IST)"),
     db: Session = Depends(get_db),
 ):
-    return get_emergency_stats(db, days=days)
+    return get_emergency_stats(db, days=days, today=today)
 
 
 @router.get("/emergencies/type/{emergency_type}", response_model=List[EmergencySummary])

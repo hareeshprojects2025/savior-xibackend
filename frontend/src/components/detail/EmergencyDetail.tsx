@@ -44,7 +44,7 @@ function Row({ label, value, icon: Icon, children, className }: {
   )
 }
 
-export function EmergencyDetail({ emergency, onStatusChange, onDelete, transcriptLines }: EmergencyDetailProps) {
+export function EmergencyDetail({ emergency, onStatusChange, onDelete }: EmergencyDetailProps) {
   const [statusLoading, setStatusLoading] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [pendingStatus, setPendingStatus] = useState<EmergencyStatus | null>(null)

@@ -1,9 +1,8 @@
-import asyncio
 import logging
 
 import httpx
 
-NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+PHOTON_URL = "https://photon.komoot.io/api/"
 USER_AGENT = "SAVIOR/1.0 (emergency dispatch demo)"
 
 logger = logging.getLogger("savior.geocoding")
@@ -20,16 +19,24 @@ async def geocode_location(location: str, landmark: str | None = None) -> tuple[
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
-                    NOMINATIM_URL,
-                    params={"q": q, "format": "json", "limit": 1},
+                    PHOTON_URL,
+                    params={
+                        "q": q,
+                        "limit": 1,
+                        "lang": "en",
+                        "countrycode": "IN",
+                        "lat": 15.3647,
+                        "lon": 75.1239,
+                    },
                     headers={"User-Agent": USER_AGENT},
                     timeout=10,
                 )
                 resp.raise_for_status()
                 data = resp.json()
-                if data and len(data) > 0:
-                    lat = float(data[0]["lat"])
-                    lng = float(data[0]["lon"])
+                features = data.get("features", [])
+                if features:
+                    coords = features[0]["geometry"]["coordinates"]
+                    lng, lat = float(coords[0]), float(coords[1])
                     logger.info("Geocoded '%s' → (%s, %s)", q, lat, lng)
                     return (lat, lng)
                 logger.warning("No results for '%s'", q)

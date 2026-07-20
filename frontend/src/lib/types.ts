@@ -55,6 +55,10 @@ export interface Emergency {
   status: EmergencyStatus
   full_transcript: string | null
   bolna_call_id: string | null
+  location_captured: boolean | null
+  district_check: string | null
+  pipeline_status: string | null
+  dispatch_record_id: number | null
   created_at: string
 }
 

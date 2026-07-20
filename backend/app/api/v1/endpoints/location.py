@@ -40,9 +40,7 @@ async def get_location_page(emergency_id: int, db: Session = Depends(get_db)):
     with open(LOCATION_HTML_PATH, "r") as f:
         html = f.read()
 
-    # Template substitution
     html = html.replace("{{EMERGENCY_ID}}", str(emergency_id))
-    html = html.replace("{{BASE_URL}}", "")
 
     return HTMLResponse(content=html)
 

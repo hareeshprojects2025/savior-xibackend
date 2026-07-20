@@ -25,7 +25,7 @@ const SEVERITY_COLORS: Record<string, string> = {
   Low: "#6B7280",
 }
 
-const TYPE_COLORS = ["#0058be", "#DC2626", "#F59E0B", "#727785", "#10B981", "#8B5CF6"]
+const TYPE_COLORS = ["#2563EB", "#DC2626", "#F59E0B", "#727785", "#10B981", "#8B5CF6"]
 
 function StatCard({ label, value, accent, icon: Icon, trend, trendLabel }: {
   label: string
@@ -172,7 +172,7 @@ export function StatsGrid({ stats, loading, error, onRetry }: StatsGridProps) {
                         {d.count}
                       </span>
                     </div>
-                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{STAGE_LABELS[d.stage]}</span>
+                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{STAGE_LABELS[d.stage]}</span>
                     {i < pipelineData.length - 1 && (
                       <ArrowRight className="size-3.5 text-gray-300 -mt-0.5" />
                     )}
@@ -208,12 +208,12 @@ export function StatsGrid({ stats, loading, error, onRetry }: StatsGridProps) {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={severityBars} layout="vertical" margin={{ top: 5, right: 30, left: 5, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
-                <XAxis type="number" tick={{ fill: "#94A3B8", fontSize: 11, fontFamily: "'Geist Mono', monospace" }} axisLine={false} tickLine={false} domain={[0, totalPct]} />
-                <YAxis dataKey="name" type="category" tick={{ fill: "#0F172A", fontSize: 12, fontFamily: "'Geist', sans-serif", fontWeight: 600 }} axisLine={false} tickLine={false} width={70} />
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--color-border)" />
+                <XAxis type="number" tick={{ fill: "var(--color-text-muted)", fontSize: 11, fontFamily: "'Geist Mono', monospace" }} axisLine={false} tickLine={false} domain={[0, totalPct]} />
+                <YAxis dataKey="name" type="category" tick={{ fill: "var(--color-text)", fontSize: 12, fontFamily: "'Geist', sans-serif", fontWeight: 600 }} axisLine={false} tickLine={false} width={70} />
                 <Tooltip
-                  contentStyle={{ background: "#2a313d", color: "#fff", border: "1px solid #c2c6d6", borderRadius: "0.5rem", fontSize: "12px", fontFamily: "'Geist Mono', monospace" }}
-                  formatter={(value: unknown, _name: unknown, props: { payload?: { pct: number } }) => [`${value} (${props?.payload?.pct || 0}%)`, "Count"]}
+                  formatter={(value: number) => `${value}`}
+                  contentStyle={{ background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-border)", borderRadius: "0.5rem", fontSize: "12px", fontFamily: "'Geist Mono', monospace" }}
                 />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={28}>
                   {severityData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
@@ -232,11 +232,11 @@ export function StatsGrid({ stats, loading, error, onRetry }: StatsGridProps) {
                 <XAxis dataKey="hour" tick={{ fill: "#94A3B8", fontSize: 9, fontFamily: "'Geist Mono', monospace" }} axisLine={false} tickLine={false} interval={2} dy={6} />
                 <YAxis tick={{ fill: "#94A3B8", fontSize: 11, fontFamily: "'Geist Mono', monospace" }} axisLine={false} tickLine={false} />
                 <Tooltip
-                  contentStyle={{ background: "#2a313d", color: "#fff", border: "1px solid #c2c6d6", borderRadius: "0.5rem", fontSize: "12px", fontFamily: "'Geist Mono', monospace" }}
-                  labelStyle={{ color: "#fff", fontWeight: 700, marginBottom: "4px" }}
+                  contentStyle={{ background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-border)", borderRadius: "0.5rem", fontSize: "12px", fontFamily: "'Geist Mono', monospace" }}
+                  labelStyle={{ color: "var(--color-text)", fontWeight: 700, marginBottom: "4px" }}
                   formatter={(value: unknown) => [`${value} emergencies`, "Count"]}
                 />
-                <Bar dataKey="count" radius={[2, 2, 0, 0]} fill="#2563EB" maxBarSize={16} />
+                <Bar dataKey="count" radius={[2, 2, 0, 0]} fill="var(--color-info)" maxBarSize={16} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -244,7 +244,7 @@ export function StatsGrid({ stats, loading, error, onRetry }: StatsGridProps) {
             const peak = stats.by_hour.reduce((max, h) => h.count > max.count ? h : max, stats.by_hour[0])
             const total = stats.by_hour.reduce((s, h) => s + h.count, 0)
             return (
-              <div className="mt-2 text-[10px] font-semibold cockpit-number text-gray-400">
+              <div className="mt-2 text-xs font-semibold cockpit-number text-gray-400">
                 Peak: <span className="text-blue-600">{peak.hour}</span> ({peak.count} emergencies) — {total} total across 24h
               </div>
             )

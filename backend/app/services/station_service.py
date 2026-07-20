@@ -11,33 +11,64 @@ logger = logging.getLogger("savior.station")
 
 
 STATION_SEED_DATA = [
-    # Police stations (6)
-    {"name": "Hubli Town Police Station", "type": "police", "latitude": 15.3452, "longitude": 75.1431, "address": "Durgad Bail, Broadway, Hubli, Karnataka 580028", "phone": "0836-2233540"},
-    {"name": "Vidyanagar Police Station", "type": "police", "latitude": 15.3765, "longitude": 75.1220, "address": "Vidyanagar, Hubli, Karnataka 580031", "phone": "0836-2233516"},
-    {"name": "Keshwapur Police Station", "type": "police", "latitude": 15.3612, "longitude": 75.1028, "address": "Kusgal Road, Keshwapur, Hubli, Karnataka 580023", "phone": "0836-2233518"},
-    {"name": "Gokul Road Police Station", "type": "police", "latitude": 15.3566, "longitude": 75.1611, "address": "Near New Bus Stand, Gokul Road, Hubli, Karnataka 580030", "phone": "0836-2233525"},
-    {"name": "Dharwad Town Police Station", "type": "police", "latitude": 15.4589, "longitude": 75.0078, "address": "Near Old Bus Stand, Dharwad, Karnataka 580001", "phone": "0836-2233512"},
-    {"name": "Dharwad Suburban Police Station", "type": "police", "latitude": 15.4317, "longitude": 74.9856, "address": "Belagavi Road, Near DIMS Hospital, Dharwad 580001", "phone": "0836-2233511"},
-    # Fire stations (5)
-    {"name": "Fire Station Amargol", "type": "fire", "latitude": 15.3989, "longitude": 75.0867, "address": "Amargol, Hubli, Karnataka 580025", "phone": "101 / 0836-2323068"},
-    {"name": "Fire Station Old Hubli", "type": "fire", "latitude": 15.3486, "longitude": 75.1331, "address": "Kasabapet Main Road, Old Hubli, Karnataka 580024", "phone": "101"},
-    {"name": "Fire Station Dharwad", "type": "fire", "latitude": 15.4689, "longitude": 75.0194, "address": "Dharwad, Karnataka 580008", "phone": "101"},
-    {"name": "Fire Station Navalur", "type": "fire", "latitude": 15.3812, "longitude": 75.1083, "address": "Navalur, Hubli, Karnataka 580025", "phone": "101"},
-    {"name": "Fire Station Kalaghatagi", "type": "fire", "latitude": 15.3083, "longitude": 74.9750, "address": "Kalaghatagi, Dharwad District, Karnataka", "phone": "101"},
-    # Hospitals / Medical (6)
-    {"name": "KIMS District Hospital Hubli", "type": "medical", "latitude": 15.3618, "longitude": 75.1307, "address": "PB Road, Vidyanagar, Hubli, Karnataka 580021", "phone": "0836-2370057"},
-    {"name": "SDM College of Medical Sciences & Hospital", "type": "medical", "latitude": 15.4184, "longitude": 75.0484, "address": "Manjushree Nagar, Sattur, Dharwad, Karnataka 580009", "phone": "0836-2477777"},
-    {"name": "KLE Hospital & Medical Research Centre", "type": "medical", "latitude": 15.3942, "longitude": 75.0897, "address": "Gabbur Cross, Hubli, Karnataka 580028", "phone": "0836-2001502"},
-    {"name": "District Hospital Dharwad", "type": "medical", "latitude": 15.4653, "longitude": 75.0086, "address": "Fort, Dharwad, Karnataka 580001", "phone": "0836-2747747"},
-    {"name": "Shivakrupa Hospital & ICU", "type": "medical", "latitude": 15.3388, "longitude": 75.1213, "address": "Hubli, Karnataka 580020", "phone": "0836-2351011"},
-    {"name": "Central Hospital South Western Railway", "type": "medical", "latitude": 15.3549, "longitude": 75.1409, "address": "Railway Colony, Hubli, Karnataka 580020", "phone": "0836-2364751"},
+    # Police stations (21 — all Hubli-Dharwad city police from dharwad.nic.in)
+    {"name": "Hubli Town Police Station", "type": "police", "latitude": 15.3452, "longitude": 75.1431, "address": "Broadway, Near Durgad Bail, Hubli 580028", "phone": "0836-2233540"},
+    {"name": "Bendigeri Police Station", "type": "police", "latitude": 15.3405, "longitude": 75.1410, "address": "Settlement Hubli, Near Nehru College, Ghantikeri Oni, Hubli 580020", "phone": "0836-2233526"},
+    {"name": "Ghantikeri Police Station", "type": "police", "latitude": 15.3458, "longitude": 75.1485, "address": "Javali Sal, Hubli 580024", "phone": "0836-2233527"},
+    {"name": "Kasabapet Police Station", "type": "police", "latitude": 15.3382, "longitude": 75.1532, "address": "Near Sadarsofa Bridge, Kasaba Main Road, Old Hubli 580024", "phone": "0836-2233536"},
+    {"name": "Old Hubli Police Station", "type": "police", "latitude": 15.3340, "longitude": 75.1580, "address": "Near Indipump Circle, Karwar Road, Old Hubli 580024", "phone": "0836-2233541"},
+    {"name": "Vidyanagar Police Station", "type": "police", "latitude": 15.3610, "longitude": 75.1260, "address": "Opp PC Jabin College, Vidyanagar, Hubli 580031", "phone": "0836-2233516"},
+    {"name": "Gokul Road Police Station", "type": "police", "latitude": 15.3493, "longitude": 75.1164, "address": "Near New Bus Stand, Gokul Road, Hubli 580030", "phone": "0836-2233525"},
+    {"name": "Hubli Sub-urban Police Station", "type": "police", "latitude": 15.3507, "longitude": 75.1393, "address": "Near Brindavan Circle, Lamington Road, Hubli 580020", "phone": "0836-2233517"},
+    {"name": "Kamaripet Police Station", "type": "police", "latitude": 15.3530, "longitude": 75.1350, "address": "Near Irkal Petrol Pump, PB Road, Hubli 580020", "phone": "0836-2233519"},
+    {"name": "Keshwapur Police Station", "type": "police", "latitude": 15.3570, "longitude": 75.1170, "address": "Near Ramesh Bhavan, Keshwapur, Hubli 580023", "phone": "0836-2233518"},
+    {"name": "Women Police Station Hubli", "type": "police", "latitude": 15.3505, "longitude": 75.1390, "address": "Near Brindavan Circle, Lamington Road, Hubli 580020", "phone": "0836-2233514"},
+    {"name": "Dharwad Town Police Station", "type": "police", "latitude": 15.4580, "longitude": 75.0070, "address": "Near Old Bus-stand, Subhash Road, Dharwad 580001", "phone": "0836-2233512"},
+    {"name": "Vidyagiri Police Station", "type": "police", "latitude": 15.4650, "longitude": 75.0020, "address": "Kalagatagi Road, Saraswatapur, Dharwad 580001", "phone": "0836-2233513"},
+    {"name": "Dharwad Sub-urban Police Station", "type": "police", "latitude": 15.4500, "longitude": 75.0150, "address": "Belagavi Road, Near DIMS Hospital, Dharwad 580001", "phone": "0836-2233511"},
+    {"name": "Dharwad Traffic Police Station", "type": "police", "latitude": 15.4550, "longitude": 75.0120, "address": "Vivekanand Circle, Near Tahasildar Office, Dharwad 580001", "phone": "0836-2233542"},
+    {"name": "North Traffic Police Station Hubli", "type": "police", "latitude": 15.3560, "longitude": 75.1320, "address": "Near New Cotton Market, Hubli 580029", "phone": "0836-2233515"},
+    {"name": "South Traffic Police Station Hubli", "type": "police", "latitude": 15.3450, "longitude": 75.1400, "address": "Near New English Medium School, PB Road, Hubli 580020", "phone": "0836-2233538"},
+    {"name": "APMC Navanagar Police Station", "type": "police", "latitude": 15.3660, "longitude": 75.1060, "address": "Near Navanagar Market, Hubli 580025", "phone": "0836-2233492"},
+    {"name": "Ashok Nagar Police Station", "type": "police", "latitude": 15.3580, "longitude": 75.1050, "address": "Adharshanagar Main Road, Vishweshwar Nagar, Hubli 580032", "phone": "0836-2233490"},
+    {"name": "East Traffic Police Station Hubli", "type": "police", "latitude": 15.3580, "longitude": 75.1200, "address": "Kusgal Road, Opp Post Office, Keshwapur, Hubli 580023", "phone": "0836-2233543"},
+    {"name": "Cyber Crime Police Station Hubli-Dharwad", "type": "police", "latitude": 15.3440, "longitude": 75.1460, "address": "Opp Nehru College, Ghantikeri, Hubli 580020", "phone": "0836-2233567"},
+    # Fire stations (5 — all known HD-area fire stations)
+    {"name": "Fire Station Amargol", "type": "fire", "latitude": 15.3780, "longitude": 75.0920, "address": "Amargol, Hubli, Karnataka 580025", "phone": "0836-2322555"},
+    {"name": "Fire Station Old Hubli", "type": "fire", "latitude": 15.3370, "longitude": 75.1550, "address": "Old Hubli Area, Hubli, Karnataka 580024", "phone": ""},
+    {"name": "Dharwad Fire Station (CFO Hubli Zone)", "type": "fire", "latitude": 15.4520, "longitude": 75.0180, "address": "Dharwad, Karnataka 580008", "phone": "0836-2794555"},
+    {"name": "Hubli Fire Station (HDMC)", "type": "fire", "latitude": 15.3540, "longitude": 75.1340, "address": "Under HDMC, Hubli, Karnataka", "phone": "0836-2352045"},
+    {"name": "Fire Station Navanagar", "type": "fire", "latitude": 15.3650, "longitude": 75.1080, "address": "Navanagar, Hubli, Karnataka 580025", "phone": ""},
+    # Hospitals / Medical (11 — emergency/trauma capable)
+    {"name": "KIMS (Karnataka Institute of Medical Sciences)", "type": "medical", "latitude": 15.3617, "longitude": 75.1323, "address": "PB Road, Vidyanagar, Hubli 580022", "phone": "0836-2374624"},
+    {"name": "SDM College of Medical Sciences & Hospital", "type": "medical", "latitude": 15.4400, "longitude": 75.0350, "address": "Manjushree Nagar, Sattur, Dharwad 580009", "phone": "0836-2477777"},
+    {"name": "Sushruta Hospital", "type": "medical", "latitude": 15.3640, "longitude": 75.1250, "address": "PB Road, Vidyanagar, Hubli 580021", "phone": "0836-2378600"},
+    {"name": "Balaji Institute of Neuro Sciences & Trauma", "type": "medical", "latitude": 15.3620, "longitude": 75.1280, "address": "Vidyanagar, Hubli, Karnataka", "phone": ""},
+    {"name": "Railway Hospital (South Western Railway)", "type": "medical", "latitude": 15.3538, "longitude": 75.1500, "address": "Gadag Road, Keshwapur, Hubli 580023", "phone": ""},
+    {"name": "Our Lady of Lourdes Charitable Hospital", "type": "medical", "latitude": 15.3480, "longitude": 75.1420, "address": "Hubli, Karnataka", "phone": ""},
+    {"name": "Civil Hospital Dharwad", "type": "medical", "latitude": 15.4580, "longitude": 75.0050, "address": "Killa, Opposite Karnataka High School, Dharwad 580004", "phone": "0836-2448111"},
+    {"name": "ESI Hospital Dharwad", "type": "medical", "latitude": 15.4620, "longitude": 75.0080, "address": "Near Hubli Toll Naka, Saraswathpura, Dharwad 580002", "phone": "0836-2440316"},
+    {"name": "Hubli Super Speciality Hospital", "type": "medical", "latitude": 15.3590, "longitude": 75.1220, "address": "Lingarajnagar, Hubli, Karnataka", "phone": "09989966980"},
+    {"name": "Ashoka Hospital", "type": "medical", "latitude": 15.3620, "longitude": 75.1300, "address": "Behind Amrut Theatre, Vidyanagar, Hubli", "phone": ""},
+    {"name": "HCG Suchirayu Hospital", "type": "medical", "latitude": 15.3500, "longitude": 75.1180, "address": "Gokul Road, Opposite KSRTC Bus Depot, Kallur Layout, Hubli", "phone": ""},
+    # Rescue teams (3 — for floods, building collapse, accidents)
+    {"name": "NDRF Team Hubli", "type": "rescue", "latitude": 15.3700, "longitude": 75.1000, "address": "Amargol, Hubli, Karnataka", "phone": "0836-2226789"},
+    {"name": "SDRF Dharwad Unit", "type": "rescue", "latitude": 15.4600, "longitude": 75.0500, "address": "Near Dharwad Bus Stand, Dharwad, Karnataka", "phone": ""},
+    {"name": "Fire & Rescue Amargol", "type": "rescue", "latitude": 15.3800, "longitude": 75.0950, "address": "Amargol Industrial Area, Hubli, Karnataka", "phone": "0836-2322550"},
 ]
 
 
+EMERGENCY_TYPE_MAP = {
+    "accident": ["medical", "rescue"],
+    "flood": ["fire", "rescue"],
+    "building collapse": ["fire", "rescue"],
+    "wildlife": ["police"],
+}
+
 def get_stations_by_type(db: Session, emergency_type: str) -> list[Station]:
-    """Query stations where type matches the emergency type (lowercase normalization)."""
     normalized_type = emergency_type.lower()
-    return db.query(Station).filter(Station.type == normalized_type).all()
+    station_types = EMERGENCY_TYPE_MAP.get(normalized_type, [normalized_type])
+    return db.query(Station).filter(Station.type.in_(station_types)).all()
 
 
 async def rank_stations(
@@ -77,12 +108,18 @@ async def rank_stations(
     return valid_results[:limit]
 
 
-def seed_stations(db: Session) -> int:
-    """Check if stations table is empty. If empty, insert seed data. Return count."""
+def seed_stations(db: Session, force: bool = False) -> int:
+    """Check if stations table is empty. If empty, insert seed data. Return count.
+    If force=True, clear existing stations and re-seed."""
     existing = db.query(Station).count()
-    if existing > 0:
+    if existing > 0 and not force:
         logger.info("Stations table already has %d records — skipping seed", existing)
         return existing
+
+    if force and existing > 0:
+        logger.info("Force re-seed: clearing %d existing stations", existing)
+        db.query(Station).delete()
+        db.commit()
 
     for data in STATION_SEED_DATA:
         station = Station(**data)

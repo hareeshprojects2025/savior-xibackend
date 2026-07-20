@@ -34,7 +34,9 @@ describe("getEmergenciesWithinRadius", () => {
       landmark: null, victims: null, description: null,
       immediate_danger: null, summary: null,
       latitude: 19.08, longitude: 72.88, // ~0.5 km from center
-      status: "pending", full_transcript: null, created_at: new Date().toISOString(),
+      status: "pending", full_transcript: null,
+      bolna_call_id: null, location_captured: null, district_check: null, pipeline_status: null, dispatch_record_id: null,
+      created_at: new Date().toISOString(),
     },
     {
       id: 2, caller_name: "B", caller_phone: null, victim_name: null,
@@ -42,7 +44,9 @@ describe("getEmergenciesWithinRadius", () => {
       landmark: null, victims: null, description: null,
       immediate_danger: null, summary: null,
       latitude: 19.5, longitude: 73.0, // ~50 km from center
-      status: "pending", full_transcript: null, created_at: new Date().toISOString(),
+      status: "pending", full_transcript: null,
+      bolna_call_id: null, location_captured: null, district_check: null, pipeline_status: null, dispatch_record_id: null,
+      created_at: new Date().toISOString(),
     },
     {
       id: 3, caller_name: "C", caller_phone: null, victim_name: null,
@@ -50,7 +54,9 @@ describe("getEmergenciesWithinRadius", () => {
       landmark: null, victims: null, description: null,
       immediate_danger: null, summary: null,
       latitude: null, longitude: null,
-      status: "pending", full_transcript: null, created_at: new Date().toISOString(),
+      status: "pending", full_transcript: null,
+      bolna_call_id: null, location_captured: null, district_check: null, pipeline_status: null, dispatch_record_id: null,
+      created_at: new Date().toISOString(),
     },
   ]
 

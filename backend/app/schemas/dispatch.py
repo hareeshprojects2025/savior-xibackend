@@ -25,6 +25,14 @@ class DispatchResponse(BaseModel):
     message: str
 
 
+class AckWebhookBody(BaseModel):
+    dispatch_record_id: str | int
+    call_id: str = ""
+    ack_status: str = ""
+    station_name: str | None = None
+    notes: str | None = None
+
+
 class DispatchRecordOut(BaseModel):
     id: int
     emergency_id: int

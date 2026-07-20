@@ -15,7 +15,7 @@ from app.services.duplicate_service import check_duplicate, merge_duplicate, is_
 from app.services.station_service import rank_stations, get_stations_by_type
 from app.services.routing_service import compute_route
 from app.services.sms_service import send_sms, build_location_sms
-from app.services.message_service import SimulatedMessageService, MessageService
+from app.services.message_service import BolnaMessageService, SimulatedMessageService, MessageService
 
 logger = logging.getLogger("savior.dispatch")
 
@@ -23,7 +23,7 @@ logger = logging.getLogger("savior.dispatch")
 _escalation_timers: dict[int, asyncio.Task] = {}
 
 # Default message service for MVP
-_default_message_service: MessageService = SimulatedMessageService()
+_default_message_service: MessageService = BolnaMessageService()
 
 
 async def run_validation_pipeline(db: Session, emergency: Emergency) -> dict:
@@ -53,7 +53,7 @@ async def run_validation_pipeline(db: Session, emergency: Emergency) -> dict:
 
     # Duplicate check (if location string provided)
     if emergency.location:
-        dup, existing = is_duplicate(db, emergency.location, emergency.emergency_type, emergency.created_at)
+        dup, existing = is_duplicate(db, emergency.location, emergency.emergency_type, emergency.created_at, exclude_id=emergency.id)
         result["duplicate_check"] = {"is_duplicate": dup, "existing_id": existing.id if existing else None}
         if dup and existing:
             logger.info("Emergency %d is a duplicate of emergency %d — merging", emergency.id, existing.id)
@@ -132,9 +132,8 @@ async def execute_dispatch(
     db.commit()
     db.refresh(record)
 
-    # Update emergency status
-    emergency.status = "dispatched"  # type: ignore[assignment]
-    emergency.pipeline_status = "dispatched"
+    # Update emergency status — stays "pending" until station ACKs
+    emergency.pipeline_status = "pending_ack"
     emergency.dispatch_record_id = record.id
     db.commit()
     db.refresh(emergency)
@@ -142,9 +141,14 @@ async def execute_dispatch(
     # Send dispatch notification via message service
     incident = {
         "emergency_id": emergency.id,
+        "dispatch_record_id": record.id,
         "emergency_type": emergency.emergency_type,
         "location": emergency.location,
         "description": emergency.description or "",
+        "severity": emergency.severity or "",
+        "victims": str(emergency.victims) if emergency.victims else "",
+        "caller_name": emergency.caller_name or "",
+        "summary": emergency.summary or "",
     }
     call_id = None
     if station.phone:
@@ -152,7 +156,9 @@ async def execute_dispatch(
         logger.info("Dispatch call placed: emergency=%d, station=%s, call_id=%s",
                      emergency_id, station.name, call_id)
 
-    # Start escalation timer (2-minute timeout)
+
+
+    # Start escalation timer (10-minute timeout)
     if call_id:
         _start_escalation_timer(record.id, call_id)
 
@@ -160,7 +166,7 @@ async def execute_dispatch(
     await manager.broadcast({
         "type": "dispatch_update",
         "emergency_id": emergency_id,
-        "dispatch_status": "pending_call",
+        "dispatch_status": "pending_ack",
         "station_id": station_id,
         "station_name": station.name,
     })
@@ -176,16 +182,8 @@ async def execute_dispatch(
 
 async def auto_trigger_dispatch_pipeline(db: Session, emergency: Emergency) -> None:
     """Called after emergency creation. Sends SMS with location link, starts pipeline."""
-    # Check for duplicates first
-    if emergency.location:
-        dup, existing = is_duplicate(db, emergency.location, emergency.emergency_type, emergency.created_at)
-        if dup and existing:
-            logger.info("Emergency %d is duplicate of %d — aborting pipeline, will merge", emergency.id, existing.id)
-            emergency.pipeline_status = "duplicate_found"
-            db.commit()
-            return
-
-    # Send SMS with location capture link
+    # Send SMS with location capture link  
+    # (duplicate check runs later in run_validation_pipeline, after district check)
     if emergency.caller_phone:
         phone, msg = build_location_sms(emergency.caller_phone, emergency.id, BASE_URL)
         sms_sent = await send_sms(phone, msg)
@@ -319,23 +317,39 @@ async def escalate_dispatch(
 
 
 def _start_escalation_timer(dispatch_record_id: int, call_id: str) -> None:
-    """Start a background asyncio task that escalates after 120 seconds if no ACK."""
+    """Start a background asyncio task that escalates after 600 seconds if no ACK."""
     if call_id.startswith("sim_"):
         # In simulated mode, skip the actual timer — dispatcher manually confirms ACK
         return
 
     async def _timer():
-        await asyncio.sleep(120)  # 2-minute timeout per D-32
+        await asyncio.sleep(600)  # 10-minute timeout for agent to complete
         # Import here to avoid circular dependency at module level
         from app.core.database import SessionLocal
         db = SessionLocal()
         try:
-            from app.services.dispatch_service import escalate_dispatch
-            result = await escalate_dispatch(db, dispatch_record_id)
-            if result:
-                logger.info("Escalation timer fired for dispatch %d: %s", dispatch_record_id, result.get("status"))
-            else:
-                logger.info("Escalation timer fired for dispatch %d: already handled", dispatch_record_id)
+            record = db.query(DispatchRecord).filter(DispatchRecord.id == dispatch_record_id).first()
+            if not record or record.status == DispatchStatus.acknowledged:
+                return
+
+            record.status = DispatchStatus.escalated
+            db.commit()
+
+            emergency = db.query(Emergency).filter(Emergency.id == record.emergency_id).first()
+            if emergency:
+                if emergency.pipeline_status != "pending_ack":
+                    return
+                emergency.pipeline_status = "awaiting_redispatch"
+                db.commit()
+                await manager.broadcast({
+                    "type": "dispatch_update",
+                    "emergency_id": emergency.id,
+                    "dispatch_status": "awaiting_redispatch",
+                    "station_id": record.station_id,
+                    "message": "Station did not respond",
+                })
+
+            logger.info("Escalation timer fired for dispatch %d — awaiting redispatch", dispatch_record_id)
         except Exception as e:
             logger.error("Escalation timer error for dispatch %d: %s", dispatch_record_id, e)
         finally:

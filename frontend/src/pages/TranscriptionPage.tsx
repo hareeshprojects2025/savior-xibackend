@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react"
-import { Download, ArrowRight, User, MapPin, Phone, Terminal, Clock, Users } from "lucide-react"
+import { Download, User, MapPin, Terminal, Clock } from "lucide-react"
 import { useEmergencyFeedContext } from "@/hooks/EmergencyFeedContext"
 import { FeedSkeleton } from "@/components/common/LoadingSkeleton"
 import { formatTimeAgo } from "@/lib/utils"
@@ -82,11 +82,10 @@ function CallCard({ id, caller_name, emergency_type, severity, location, victims
   )
 }
 
-function LiveTranscriptCard({ session_id, transcript_text, emergency_type, speaker }: {
-  session_id: string; transcript_text: string; emergency_type: string; speaker: string
+function LiveTranscriptCard({ session_id, transcript_text, emergency_type }: {
+  session_id: string; transcript_text: string; emergency_type: string
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
-  const prevLenRef = useRef(0)
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -132,9 +131,7 @@ function LiveTranscriptCard({ session_id, transcript_text, emergency_type, speak
               {String(i + 1).padStart(2, "0")}
             </span>
             <div>
-              <span className={`font-bold mr-2 tracking-wide text-xs ${
-                line.speaker === "AI" ? "text-[#adc6ff]" : "text-[#FBBF24]"
-              }`}>
+              <span className={`font-bold mr-2 tracking-wide text-xs ${line.speaker === "AI" ? "text-[#adc6ff]" : "text-[#FBBF24]"}`}>
                 [{line.speaker.toUpperCase()}]
               </span>
               <span className={line.speaker === "AI" ? "text-[#dce2f3]" : "text-white"}>
@@ -251,7 +248,7 @@ function TranscriptDetail({ emergency }: { emergency: NonNullable<ReturnType<typ
 }
 
 export function TranscriptionPage() {
-  const { emergencies, loading, reconnecting, connected, activeSessions } = useEmergencyFeedContext()
+  const { emergencies, loading, reconnecting, activeSessions } = useEmergencyFeedContext()
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [severityFilter, setSeverityFilter] = useState<string | null>(null)
@@ -368,7 +365,6 @@ export function TranscriptionPage() {
                   session_id={session.session_id}
                   transcript_text={session.transcript_text}
                   emergency_type={session.emergency_type}
-                  speaker={session.speaker}
                 />
               ))}
             </div>

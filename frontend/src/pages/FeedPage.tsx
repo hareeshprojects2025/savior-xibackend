@@ -21,6 +21,7 @@ export function FeedPage() {
   const handleDelete = useCallback(async (id: number) => { await deleteEmergency(id) }, [deleteEmergency])
 
   const filteredEmergencies = emergencies
+    .filter((e) => e.pipeline_status !== "pending_manual_review")
     .filter((e) => {
       if (selectedStatus && e.status !== selectedStatus) return false
       if (selectedSeverity && e.severity !== selectedSeverity) return false

@@ -1,11 +1,11 @@
 """
-Make an outbound call via the Bolna AI API.
+Place an outbound dispatch call to a station for ACK via Bolna dispatch agent.
 
 Usage:
-    python tests/make_call.py                        # uses RECIPIENT_NUMBER from .env
-    python tests/make_call.py --phone "+919999999999" # overrides .env
-    python tests/make_call.py --track                 # poll until completed
-    python tests/make_call.py --from-number "+918035739222"
+    python tests/make_dispatch_call.py --station-phone "+918277057365" --emergency-id 101
+    python tests/make_dispatch_call.py --station-phone "+918277057365" --emergency-id 101 --type Medical --location "Terby Blend, Hubli"
+    python tests/make_dispatch_call.py --station-phone "+918277057365" --emergency-id 101 --description "Flooding in basement"
+    python tests/make_dispatch_call.py --track  # poll until completed
 """
 
 import argparse
@@ -30,13 +30,18 @@ def normalize_phone(phone: str) -> str:
     return phone
 
 
-def make_call(api_key: str, agent_id: str, recipient: str, from_number: str | None = None) -> dict:
+def make_dispatch_call(api_key: str, agent_id: str, recipient: str, incident: dict) -> dict:
     payload = {
         "agent_id": agent_id,
         "recipient_phone_number": recipient,
+        "bypass_call_guardrails": True,
+        "user_data": {
+            "emergency_id": incident.get("emergency_id"),
+            "incident_type": incident.get("incident_type", ""),
+            "location": incident.get("location", ""),
+            "description": incident.get("description", ""),
+        },
     }
-    if from_number:
-        payload["from_phone_number"] = from_number
 
     resp = requests.post(
         API_URL,
@@ -59,6 +64,7 @@ def make_call(api_key: str, agent_id: str, recipient: str, from_number: str | No
 
 STUCK_STATUSES = {"queued", "initiated", "ringing"}
 
+
 def track_call(api_key: str, execution_id: str, interval: int = 5):
     stages = set()
     url = EXECUTION_URL.format(execution_id=execution_id)
@@ -74,7 +80,7 @@ def track_call(api_key: str, execution_id: str, interval: int = 5):
         data = resp.json()
         status = data.get("call_status", data.get("status", "unknown"))
         if status not in stages:
-            print(f"  → {status}")
+            print(f"  -> {status}")
             stages.add(status)
 
         if status == "completed":
@@ -84,7 +90,7 @@ def track_call(api_key: str, execution_id: str, interval: int = 5):
                 print(f"  Recording: {data['recording_url']}")
             return data
 
-        if status in ("error", "failed", "cancelled"):
+        if status in ("error", "failed", "cancelled", "no-answer", "busy"):
             print(f"\n  Call ended with status: {status}")
             return data
 
@@ -92,7 +98,6 @@ def track_call(api_key: str, execution_id: str, interval: int = 5):
 
 
 def watch_and_kill(api_key: str, execution_id: str, max_ring_seconds: int, interval: int = 5):
-    """Poll execution status; stop the call if stuck in queued/initiated/ringing too long."""
     url = EXECUTION_URL.format(execution_id=execution_id)
     stop_url = STOP_URL.format(execution_id=execution_id)
     elapsed = 0
@@ -109,7 +114,7 @@ def watch_and_kill(api_key: str, execution_id: str, max_ring_seconds: int, inter
         status = data.get("call_status", data.get("status", "unknown"))
 
         if status != last_status:
-            print(f"  → {status}")
+            print(f"  -> {status}")
             last_status = status
 
         if status in ("completed", "error", "failed", "cancelled", "no-answer", "busy"):
@@ -123,46 +128,54 @@ def watch_and_kill(api_key: str, execution_id: str, max_ring_seconds: int, inter
         time.sleep(interval)
         elapsed += interval
 
-    # Timeout reached — stop if still stuck
-    print(f"\n  ⚠ No answer after {max_ring_seconds}s — stopping call...")
+    print(f"\n  No answer after {max_ring_seconds}s — stopping call...")
     resp = requests.post(stop_url, headers={"Authorization": f"Bearer {api_key}"})
     if resp.ok:
         result = resp.json()
         print(f"  Stop result: {result.get('status', '?')}")
     else:
         print(f"  Stop failed ({resp.status_code}): {resp.text}")
-    return
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Make an outbound call via Bolna AI")
-    parser.add_argument("--phone", help="Recipient phone (E.164 or plain Indian number)")
-    parser.add_argument("--from-number", help="Caller ID (optional, uses account default)")
+    parser = argparse.ArgumentParser(description="Make an outbound dispatch call to a station via Bolna")
+    parser.add_argument("--station-phone", help="Station phone number (E.164 or plain Indian number)")
+    parser.add_argument("--emergency-id", type=int, required=True, help="Emergency ID being dispatched")
+    parser.add_argument("--type", dest="incident_type", default="", help="Emergency type (Medical, Fire, Police, etc.)")
+    parser.add_argument("--location", default="", help="Incident location description")
+    parser.add_argument("--description", default="", help="Incident description")
     parser.add_argument("--track", action="store_true", help="Poll for call completion")
     parser.add_argument("--max-ring", type=int, default=30, help="Max seconds to wait for answer before stopping (default: 30)")
     parser.add_argument("--api-key", help="Bolna API key (default: from .env)")
-    parser.add_argument("--agent-id", help="Bolna agent UUID (default: from .env)")
+    parser.add_argument("--agent-id", help="Bolna dispatch agent UUID (default: BOLNA_DISPATCH_AGENT_ID from .env)")
     args = parser.parse_args()
 
     api_key = args.api_key or os.getenv("BOLNA_API_Key")
-    agent_id = args.agent_id or os.getenv("AGENT_ID")
-    recipient = args.phone or os.getenv("RECIPIENT_NUMBER")
+    agent_id = args.agent_id or os.getenv("BOLNA_DISPATCH_AGENT_ID")
+    recipient = args.station_phone
 
     if not api_key:
         print("Error: BOLNA_API_Key not found in .env or --api-key")
         sys.exit(1)
     if not agent_id:
-        print("Error: AGENT_ID not found in .env or --agent-id")
+        print("Error: BOLNA_DISPATCH_AGENT_ID not found in .env or --agent-id")
         sys.exit(1)
     if not recipient:
-        print("Error: No recipient phone. Set RECIPIENT_NUMBER in .env or pass --phone")
+        print("Error: --station-phone is required")
         sys.exit(1)
 
     recipient = normalize_phone(recipient)
-    print(f"Calling {recipient} via agent {agent_id}...")
+    incident = {
+        "emergency_id": args.emergency_id,
+        "incident_type": args.incident_type,
+        "location": args.location,
+        "description": args.description,
+    }
+
+    print(f"Dispatch call to {recipient} (emergency #{args.emergency_id}) via dispatch agent {agent_id}...")
 
     try:
-        result = make_call(api_key, agent_id, recipient, args.from_number)
+        result = make_dispatch_call(api_key, agent_id, recipient, incident)
     except RuntimeError as e:
         print(f"Failed: {e}")
         sys.exit(1)
@@ -172,7 +185,6 @@ def main():
     print(f"  status: {status}")
     print(f"  execution_id: {execution_id}")
 
-    # Always run watchdog when we get execution_id (stops stuck calls)
     if execution_id:
         if status in STUCK_STATUSES:
             watch_and_kill(api_key, execution_id, args.max_ring)
