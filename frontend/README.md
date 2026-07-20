@@ -6,11 +6,11 @@ Dispatcher dashboard built with **React 19 + TypeScript + Vite + Tailwind CSS 4*
 
 | Route | Component | Description |
 |-------|-----------|-------------|
-| `/` | FeedPage | Real-time emergency feed — cards with severity/status badges, two-row filter bar, side-panel detail view |
-| `/map` | MapPage | Leaflet map with severity markers, auto-pan, popups, map legend + status filter |
-| `/stats` | StatsPage | Analytics — 4 stat cards + 4 charts (Status Pipeline, Severity Distribution, Hourly Volume, Type Distribution) with time filter |
-| `/dispatch?emergency_id=` | DispatchPage | Station ranking, route preview on Leaflet map, dispatch with 600s ACK timer, re-dispatch on no-answer |
-| `/transcriptions` | TranscriptionsPage | Call transcript viewer — dark terminal style, live transcription cards, incident history, JSON export |
+| `/` | FeedPage | Real-time emergency feed — cards with severity/status badges, two-row filter bar (status + severity), side-panel detail view with status actions, connection banner |
+| `/map` | MapPage | Leaflet map with 36×48 teardrop severity markers, auto-pan on new arrivals, popups, no-coordinates overlay, map legend + status filter sidebar |
+| `/stats` | StatsPage | Analytics dashboard — 4 stat cards (total, active, resolved, by severity) + 4 charts (Status Pipeline, Severity Distribution, Hourly Volume, Type Distribution) with Today/Week/Month/Year/5Y time filter |
+| `/transcriptions` | TranscriptionsPage | Call transcript viewer — live transcription cards (dark terminal style with REC indicator), incident history list with severity/status filters, fetch-on-select transcript loading, JSON export |
+| `/dispatch?emergency_id=` | DispatchPage | Station ranking by ETA, route preview on Leaflet map, dispatch button with 600s ACK escalation timer, re-dispatch on no-answer |
 
 ## Tech Stack
 
@@ -41,7 +41,7 @@ Opens at `http://localhost:5173`. Vite proxies `/api/*` and `/ws` to `http://loc
 
 | Script | Description |
 |--------|-------------|
-| `npm run dev` | Dev server with HMR |
+| `npm run dev` | Start dev server with HMR |
 | `npm run build` | Production build |
 | `npm run lint` | Run Oxlint |
 | `npm run typecheck` | `tsc -b --noEmit` |
@@ -52,32 +52,64 @@ Opens at `http://localhost:5173`. Vite proxies `/api/*` and `/ws` to `http://loc
 ```
 frontend/src/
 ├── components/
-│   ├── common/          ← LoadingSkeleton, ErrorState, EmptyState, ConnectionBanner
+│   ├── common/          ← LoadingSkeleton (FeedSkeleton, CardSkeleton, DetailSkeleton), ErrorState, EmptyState, ConnectionBanner
 │   ├── feed/            ← EmergencyList, EmergencyCard, FeedFilter
 │   ├── detail/          ← EmergencyDetail, MiniMap
 │   ├── dispatch/        ← StationCard, RoutePreview, EscalationTimer
 │   ├── map/             ← EmergencyMap (Leaflet), MapFilter, MapLegend
 │   ├── stats/           ← StatsGrid (4 charts + stat cards), ChartCard
-│   └── ui/              ← shadcn/ui primitives
+│   └── ui/              ← shadcn/ui primitives (button, badge, dialog, etc.)
 ├── hooks/
-│   ├── useEmergencyFeed.ts      ← WebSocket + live state + catch-up
+│   ├── useEmergencyFeed.ts      ← WebSocket connection + live state + live-sessions catch-up on reconnect
 │   ├── EmergencyFeedContext.tsx ← React context provider
-│   ├── useDispatch.ts           ← Dispatch state machine (rankings, confirm dispatch)
-│   └── useApi.ts                ← REST API helpers
+│   ├── useDispatch.ts           ← Dispatch state machine (fetch rankings, confirm dispatch)
+│   └── useApi.ts                ← REST API helpers (updateStatus, deleteEmergency)
 ├── lib/
-│   ├── types.ts         ← Emergency, StationRanking, DispatchResponse, WsMessage, etc.
+│   ├── types.ts         ← Emergency, EmergencySummary, EmergencyStats, WsMessage, ActiveSession
 │   └── utils.ts         ← cn(), formatTimeAgo()
 ├── pages/
-│   ├── FeedPage.tsx
-│   ├── MapPage.tsx
-│   ├── StatsPage.tsx
-│   ├── DispatchPage.tsx          ← Station ranking + route + dispatch + re-dispatch
-│   └── TranscriptionPage.tsx
-├── App.tsx
-└── main.tsx
+│   ├── FeedPage.tsx             ← Emergency list + detail panel
+│   ├── MapPage.tsx              ← Map + legend + filter
+│   ├── StatsPage.tsx            ← Stats grid
+│   ├── DispatchPage.tsx         ← Station ranking + route preview + dispatch + re-dispatch
+│   └── TranscriptionPage.tsx    ← Live transcript + incident history + transcript detail
+├── App.tsx              ← Router setup (/, /map, /stats, /transcriptions)
+└── main.tsx             ← Entry point
 ```
 
-## Dispatch Flow (UI)
+## State & Data Flow
+
+```
+Bolna → Backend API → MySQL
+                  ↓
+           WebSocket (/ws)
+                  ↓
+      useEmergencyFeed hook
+        ├─ emergencies[]     ← live updates
+        ├─ activeSessions{}  ← live transcript sessions
+        ├─ connected         ← WS status
+        ├─ reconnecting      ← retry loop indicator
+        └─ loading           ← initial prefetch
+                  ↓
+      EmergencyFeedContext
+                  ↓
+      FeedPage | MapPage | StatsPage | DispatchPage | TranscriptionPage
+```
+
+### WebSocket Events
+
+| Event | Trigger |
+|-------|---------|
+| `new_emergency` | Emergency created/updated |
+| `status_update` | Status changed via PATCH |
+| `transcript_chunk` | Live transcript line during call |
+| `live_transcript` | Real-time session transcript broadcast |
+| `dispatch_update` | Dispatch initiated / ACK received / awaiting redispatch |
+| `transcript_complete` | Call ended (no transcript body) |
+| `transcript_resolved` | Final transcript + summary available |
+| `emergency_deleted` | Emergency removed |
+
+### Dispatch Flow (UI)
 
 ```
 1. Emergency arrives → Feed shows pending badge
@@ -89,41 +121,9 @@ frontend/src/
 6b. Timeout 600s → "Station did not respond" → select next station → re-dispatch
 ```
 
-## State & Data Flow
-
-```
-Bolna → Backend API → MySQL
-                  ↓
-           WebSocket (/ws)
-                  ↓
-      useEmergencyFeed hook
-        ├─ emergencies[]
-        ├─ activeSessions{}
-        ├─ connected
-        ├─ reconnecting
-        └─ loading
-                  ↓
-      EmergencyFeedContext
-                  ↓
-      All pages consume context
-```
-
-## WebSocket Events
-
-| Event | Trigger |
-|-------|---------|
-| `new_emergency` | Emergency created |
-| `dispatch_update` | Dispatch initiated / ACK received / awaiting redispatch |
-| `status_update` | Status changed |
-| `transcript_chunk` | Live transcript line |
-| `live_transcript` | Real-time session transcript |
-| `transcript_complete` | Call ended |
-| `transcript_resolved` | Final transcript available |
-| `emergency_deleted` | Emergency removed |
-
 ## Reconnection
 
 - **Backoff:** 500ms → 1s → 1s → 2s → 2s → 4s (max)
-- **Catch-up:** Fetches `GET /api/transcript/live-sessions` on reconnect
-- **Visibility:** `visibilitychange` listener forces reconnect on tab focus
-- **Indicator:** "Reconnecting to server..." banner
+- **Catch-up:** On reconnect, fetches `GET /api/transcript/live-sessions` to recover missed live sessions
+- **Visibility:** `visibilitychange` listener forces immediate reconnect when tab becomes visible
+- **Indicator:** "Reconnecting to server..." banner shown on TranscriptionPage during retry

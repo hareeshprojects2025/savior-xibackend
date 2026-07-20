@@ -14,7 +14,7 @@ bolna-agent/
 ├── prompts/
 │   ├── system-prompt.md         ← Inbound agent — behavior, info collection, function instructions
 │   ├── welcome-message.md       ← First greeting template
-│   └── station-ack-prompt.md    ← Outbound dispatch agent — reads incident, collects verbal ACK
+│   └── station-ack-prompt.md    ← Outbound dispatch agent — reads incident from user_data, collects verbal ACK
 ├── custom-functions/            ← JSON schemas for Bolna custom function webhooks
 │   ├── post-emergency.json      ← POST /api/emergency — creates emergency record
 │   ├── send-transcript-chunk.json ← POST /api/transcript_chunk — live transcript streaming
@@ -31,17 +31,19 @@ bolna-agent/
 - **Trigger:** LLM calls after collecting emergency info
 - **Method:** POST to ngrok → `/api/emergency`
 - **Fields:** emergency_type, location, description (required); caller_name, caller_phone, victim_name, severity, landmark, victims, summary, immediate_danger, call_id (optional)
+- **call_id:** Unique per-call identifier — LLM generates a timestamp/UUID and reuses it across both functions for transcript matching
 
 #### send-transcript-chunk
-- **Trigger:** LLM calls immediately after greeting, then every ~10s during conversation
+- **Trigger:** LLM calls immediately after first greeting, then every ~10 seconds during conversation
 - **Method:** POST to ngrok → `/api/transcript_chunk`
 - **Fields:** transcript_text, speaker (required); emergency_type_detected, call_id (optional)
+- **call_id:** Must match the value used in `post-emergency`
 
 ### System Prompt Highlights
 
 - Agent intro: "SAVIOR AI Emergency Assistance"
 - Collects: emergency type, caller name, location, landmark, victims, description, severity, immediate dangers
-- Calls `send_transcript_chunk` immediately after greeting
+- Calls `send_transcript_chunk` immediately after greeting (before `post_api_emergency`)
 - Calls `post_api_emergency` once enough info collected
 - Does NOT transfer calls
 
@@ -53,21 +55,12 @@ bolna-agent/
 - **Trigger:** LLM calls after station personnel responds (acknowledge/reject/needs_clarification)
 - **Method:** POST to ngrok → `/api/dispatch/ack`
 - **Fields:** dispatch_record_id, call_id, ack_status, station_name, notes
-- **user_data variables (passed from backend payload):**
-  - `{{user_data.emergency_id}}` — Incident ID
-  - `{{user_data.incident_type}}` — Fire, Medical, Police, etc.
-  - `{{user_data.location}}` — Incident location
-  - `{{user_data.description}}` — Incident description
-  - `{{user_data.severity}}` — Critical / High / Medium / Low
-  - `{{user_data.victims}}` — Number of victims
-  - `{{user_data.caller_name}}` — Caller name
-  - `{{user_data.summary}}` — AI-generated summary
+- **user_data variables (passed from backend payload):** emergency_id, dispatch_record_id, incident_type, location, description, severity, victims, caller_name, summary
 
 ### System Prompt Highlights
 
 - Agent intro: "SAVIOR Emergency Dispatch System"
 - Reads incident details from `{{user_data.*}}` variables
-- Asks for verbal acknowledgment
 - Calls `station_ack_response` with ack_status
 - Keeps calls under 60s
 - Bilingual (English + Kannada)
@@ -77,12 +70,17 @@ bolna-agent/
 ```
 1. Dispatcher clicks "Dispatch" → backend calls Bolna /call with user_data
 2. Bolna outbound agent calls station phone
-3. Agent reads: "This is SAVIOR Dispatch. Incident type: [user_data.incident_type]..."
+3. Agent reads: "Incident type: [type], Location: [location], ..."
 4. Agent asks: "Do you acknowledge this dispatch?"
 5a. "Yes" → agent calls station_ack_response with ack_status="acknowledged"
 5b. "No" → agent calls station_ack_response with ack_status="rejected"
 5c. Unclear → agent calls station_ack_response with ack_status="needs_clarification"
 ```
+
+## Known Limitations
+
+- **Language transfer:** Bolna platform-level language detection can override the system prompt. If the caller speaks mixed languages, configure the agent in the Bolna dashboard to use a single language (English) to prevent transfer.
+- **call_id reliability:** The LLM generates call_id — backend matching by `bolna_call_id` works best when the LLM provides a consistent unique value across both functions.
 
 ## Setup
 
