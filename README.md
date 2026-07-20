@@ -2,18 +2,24 @@
 
 **S**ituational **A**nalysis & **V**irtual **I**ntelligent **O**perational **R**outer
 
-Real-time emergency dispatch system. Bolna AI voice agent collects incident reports → FastAPI backend stores them → React dispatcher dashboard provides live monitoring, mapping, and incident management.
+Real-time emergency dispatch system. Bolna AI voice agents collect incident reports → FastAPI backend processes them → React dispatcher dashboard provides live monitoring, mapping, station ranking, and dispatch coordination.
 
 ## Architecture
 
 ```
-Caller → Bolna AI Agent → Backend API → MySQL
+Caller → Bolna Inbound Agent → Backend API → MySQL
                      ↓
             Live Transcript Chunks
                      ↓
               WebSocket Stream (WS)
                      ↓
             Dispatcher Dashboard (React)
+                     ↓
+         Dispatcher clicks "Dispatch"
+                     ↓
+     Bolna Outbound Agent → Station Phone
+                     ↓
+         Station ACK / No Answer → Webhook
 ```
 
 ## Structure
@@ -24,8 +30,7 @@ savior/
 ├── frontend/          ← Vite + React 19 + Tailwind 4 dashboard
 ├── bolna-agent/       ← Bolna AI config files (prompts + custom functions)
 ├── docs/              ← Project documentation
-├── scripts/           ← Dev helpers
-└── .planning/         ← GSD project management
+└── scripts/           ← Dev helpers
 ```
 
 ## Prerequisites
@@ -43,44 +48,8 @@ CREATE DATABASE IF NOT EXISTS savior_db
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 ```
-#### 1.1 Create emergency table and transcript_chunks table
-```sql
-CREATE TABLE emergencies (
-  id            INT           NOT NULL AUTO_INCREMENT,
-  caller_name   VARCHAR(255)  NOT NULL,
-  caller_phone  VARCHAR(20)   DEFAULT NULL,
-  victim_name   VARCHAR(255)  DEFAULT NULL,
-  emergency_type VARCHAR(100) NOT NULL,
-  severity      VARCHAR(50)   DEFAULT NULL,
-  location      VARCHAR(500)  NOT NULL,
-  landmark      VARCHAR(500)  DEFAULT NULL,
-  victims       INT           DEFAULT NULL,
-  description   TEXT          DEFAULT NULL,
-  immediate_danger VARCHAR(255) DEFAULT NULL,
-  summary       TEXT          DEFAULT NULL,
-  latitude      FLOAT         DEFAULT NULL,
-  longitude     FLOAT         DEFAULT NULL,
-  status        VARCHAR(20)   NOT NULL DEFAULT 'pending',
-  full_transcript TEXT        DEFAULT NULL,
-  bolna_call_id VARCHAR(255)  DEFAULT NULL,
-  created_at    DATETIME      DEFAULT NULL,
-  PRIMARY KEY (id),
-  INDEX ix_emergencies_bolna_call_id (bolna_call_id)
-);
 
-
-CREATE TABLE transcript_chunks (
-  id            INT           NOT NULL AUTO_INCREMENT,
-  emergency_id  INT           NOT NULL,
-  chunk_text    TEXT          NOT NULL,
-  is_final      TINYINT(1)    DEFAULT 0,
-  created_at    DATETIME      DEFAULT NULL,
-  PRIMARY KEY (id),
-  INDEX ix_transcript_chunks_emergency_id (emergency_id),
-  CONSTRAINT fk_transcript_chunks_emergency
-    FOREIGN KEY (emergency_id) REFERENCES emergencies(id) ON DELETE CASCADE
-);
-```
+Run the backend once to auto-create all tables (SQLAlchemy creates them on startup).
 
 ### 2. Configure environment
 
@@ -89,10 +58,13 @@ cd backend
 copy .env.example .env
 ```
 
-Edit `.env` with your MySQL password:
+Edit `.env` with your MySQL password and Bolna credentials:
 
 ```
 DATABASE_URL=mysql+pymysql://root:YOUR_PASSWORD@localhost:3306/savior_db
+BOLNA_API_Key=bn-...
+BOLNA_DISPATCH_AGENT_ID=61d7ac00-...
+BASE_URL=https://YOUR_NGROK.ngrok-free.dev
 ```
 
 ### 3. Install backend dependencies
@@ -120,6 +92,14 @@ npm run dev
 
 The dashboard is at `http://localhost:5173`.
 
+### 6. Expose with ngrok (for Bolna webhooks)
+
+```bash
+ngrok http 8000 --subdomain=YOUR_SUBDOMAIN
+```
+
+Set `BASE_URL` in `.env` to your ngrok URL.
+
 ## API Endpoints
 
 ### Emergency CRUD
@@ -128,7 +108,7 @@ The dashboard is at `http://localhost:5173`.
 | POST | `/api/emergency` | Create emergency report (from Bolna) |
 | GET | `/api/emergencies` | List all emergencies |
 | GET | `/api/emergencies/{id}` | Get single emergency |
-| PATCH | `/api/emergencies/{id}/status` | Update status (pending → dispatched → en_route → resolved) |
+| PATCH | `/api/emergencies/{id}/status` | Update status |
 | DELETE | `/api/emergencies/{id}` | Delete emergency |
 
 ### Filters & Queries
@@ -142,128 +122,56 @@ The dashboard is at `http://localhost:5173`.
 | GET | `/api/emergencies/mass-casualty?min_victims=` | Mass casualty incidents |
 | GET | `/api/emergencies/caller/{phone}` | Filter by caller phone |
 
+### Dispatch
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/emergencies/{id}/stations` | Ranked stations for an emergency |
+| POST | `/api/emergencies/{id}/dispatch` | Dispatch to a station |
+| GET | `/api/emergencies/{id}/dispatch/status` | Current dispatch status |
+| POST | `/api/dispatch/ack` | Bolna webhook — station ACK/reject/no-answer |
+
 ### Stats & Geocoding
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/emergencies/stats?days=N` | Aggregate stats (by_severity, by_status, by_type, by_hour) |
-| POST | `/api/emergencies/geocode` | Backfill missing lat/lng for all records |
+| GET | `/api/emergencies/stats?days=N` | Aggregate stats |
+| POST | `/api/emergencies/geocode` | Backfill missing lat/lng |
 
 ### Transcript
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/transcript/chunk` | Receive live transcript chunk (streams via WebSocket) |
-| POST | `/api/transcript/complete` | Receive final transcript + summary (Bolna webhook) |
-| GET | `/api/transcript/{id}/chunks` | List transcript chunks for an emergency |
-| GET | `/api/transcript/live-sessions` | Get active live transcription sessions (catch-up on reconnect) |
+| POST | `/api/transcript/chunk` | Live transcript chunk (streams via WebSocket) |
+| POST | `/api/transcript/complete` | Final transcript + summary (Bolna webhook) |
+| GET | `/api/transcript/{id}/chunks` | List transcript chunks |
+| GET | `/api/transcript/live-sessions` | Active live sessions |
 
 ### WebSocket
 | Endpoint | Description |
 |----------|-------------|
-| WS | `/ws` | Real-time event stream — `new_emergency`, `status_update`, `transcript_chunk`, `transcript_complete`, `transcript_resolved`, `live_transcript`, `emergency_deleted`. Supports `{"type":"ping"}` keepalive. |
+| WS | `/ws` | Real-time event stream |
 
 ## Frontend Overview
 
-Built with **React 19 + TypeScript + Vite + Tailwind CSS 4**.
-
 | Page | Route | Description |
 |------|-------|-------------|
-| **Feed** | `/` | Real-time emergency cards with status/severity filters, side-panel detail view |
-| **Map** | `/map` | Leaflet map with severity markers, auto-pan, popups, no-coords overlay |
-| **Stats** | `/stats` | Analytics dashboard — stat cards + 4 charts (Today/Week/Month/Year/5Y) |
-| **Transcriptions** | `/transcriptions` | Call transcript viewer — live transcription cards (dark terminal style), incident history with severity/status filters, auto-scroll, JSON export, fetch-on-select transcript loading |
+| **Feed** | `/` | Real-time emergency cards, side-panel detail view |
+| **Map** | `/map` | Leaflet map with severity markers |
+| **Stats** | `/stats` | Analytics dashboard with 4 charts |
+| **Dispatch** | `/dispatch?emergency_id=` | Station ranking, route preview, dispatch with ACK timer |
+| **Transcriptions** | `/transcriptions` | Call transcript viewer |
 
-### Design system
+### Dispatch Flow
 
-- **Typeface:** Geist + Geist Mono
-- **Icon set:** Lucide React
-- **Charts:** Recharts (bar, pie, donut)
-- **Map:** Leaflet + react-leaflet
-- **Components:** shadcn/ui primitives + custom components
-- **Utilities:** class-variance-authority, clsx, tailwind-merge
+1. Emergency appears in Feed → dispatcher opens Dispatch panel
+2. Backend ranks nearby stations by ETA (OSRM routing)
+3. Dispatcher selects a station → clicks "Dispatch"
+4. Backend calls Bolna outbound agent → Bolna calls station phone
+5. Station personnel verbally ACKs → Bolna sends webhook → status = "dispatched"
+6. No response in 600s → dispatcher picks next station
 
 ## Quick Start
 
-1. **Create the MySQL database** — Run the SQL in [Setup section](#1-create-the-database) to create `savior_db`, the `emergencies` table, and the `transcript_chunks` table.
-
-2. **Start the backend** — Copy `.env.example` to `.env` in the `backend/` directory, set your MySQL password, then run:
-   ```bash
-   cd backend
-   ..\thor\Scripts\pip install -r requirements\dev.txt
-   ..\thor\Scripts\uvicorn app.main:app --reload
-   ```
-   The API is available at `http://localhost:8000/docs`.
-
-3. **Start the frontend** — In a separate terminal:
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
-   The dashboard is available at `http://localhost:5173`.
-
-You now have a running SAVIOR system. Visit the dashboard, open the WebSocket feed, and submit test emergencies to see real-time updates across the Feed, Map, and Stats pages.
-
-## Usage Examples
-
-### 1. Submit an emergency via the API
-
-Use `curl` to simulate a Bolna agent reporting a fire incident:
-
-```bash
-curl -X POST http://localhost:8000/api/emergency \
-  -H "Content-Type: application/json" \
-  -d '{
-    "caller_name": "Harish",
-    "caller_phone": "+919876543210",
-    "emergency_type": "Fire",
-    "severity": "Medium",
-    "location": "House No. 45, MG Road, Bangalore",
-    "victims": 3,
-    "description": "Fire with smoke and three people trapped inside.",
-    "immediate_danger": "Smoke"
-  }'
-```
-
-Expected response:
-```json
-{
-  "status": "success",
-  "message": "Emergency recorded successfully."
-}
-```
-
-The new emergency immediately appears in the dashboard Feed and on the Map (via WebSocket broadcast).
-
-### 2. Query emergencies with filters
-
-List the most recent 5 emergencies:
-
-```bash
-curl "http://localhost:8000/api/emergencies/recent?limit=5&offset=0"
-```
-
-Filter by emergency type:
-
-```bash
-curl "http://localhost:8000/api/emergencies/type/Fire"
-```
-
-Get aggregate statistics for the last 7 days:
-
-```bash
-curl "http://localhost:8000/api/emergencies/stats?days=7"
-```
-
-### 3. Connect to the real-time WebSocket feed
-
-Use a WebSocket client (or `websocat`) to listen for live events:
-
-```bash
-websocat ws://localhost:8000/ws
-```
-
-Once connected, the server pushes events such as `new_emergency`, `status_update`, `transcript_chunk`, and `emergency_deleted`. Send a keepalive ping to maintain the connection:
-
-```json
-{"type": "ping"}
-```
+1. **Create the MySQL database** — run the SQL above
+2. **Start the backend** — `uvicorn app.main:app --reload`
+3. **Start ngrok** — `ngrok http 8000`
+4. **Start the frontend** — `npm run dev`
+5. **Visit** `http://localhost:5173`
