@@ -100,7 +100,7 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
               setEmergencies((prev) =>
                 prev.map((e) =>
                   e.id === msg.emergency_id
-                    ? { ...e, latitude: msg.latitude, longitude: msg.longitude, location_captured: true }
+                    ? { ...e, latitude: msg.latitude ?? null, longitude: msg.longitude ?? null, location_captured: true }
                     : e
                 )
               )

@@ -1,6 +1,7 @@
+import json
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -90,29 +91,53 @@ async def get_dispatch_status(emergency_id: int, db: Session = Depends(get_db)):
 
 @router.post("/dispatch/ack")
 async def dispatch_ack_webhook(
-    body: AckWebhookBody,
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    """Webhook endpoint for Bolna station ACK (D-31, D-32, D-33)."""
-    logger.info("ACK webhook received: dispatch_record_id=%s, call_id=%s, ack_status=%s",
-                body.dispatch_record_id, body.call_id, body.ack_status)
+    """Webhook endpoint for Bolna station ACK (D-31, D-32, D-33).
+    Accepts raw dict to handle any Bolna webhook format."""
+    raw_body = await request.json()
+    logger.info("ACK webhook raw body: %s", json.dumps(raw_body)[:1000])
+
+    # Bolna sends webhooks in varied formats — normalize field names
+    dispatch_record_id = (
+        raw_body.get("dispatch_record_id")
+        or raw_body.get("dispatchId")
+        or raw_body.get("call_data", {}).get("dispatch_record_id")
+        or raw_body.get("user_data", {}).get("dispatch_record_id")
+        or raw_body.get("metadata", {}).get("dispatch_record_id")
+    )
+    call_id = raw_body.get("call_id") or raw_body.get("callId") or raw_body.get("id", "")
+    ack_status = (
+        raw_body.get("ack_status")
+        or raw_body.get("ackStatus")
+        or raw_body.get("status")
+        or raw_body.get("call_status")
+        or raw_body.get("call_data", {}).get("ack_status")
+        or raw_body.get("user_data", {}).get("ack_status")
+        or ""
+    )
+
+    logger.info("ACK webhook parsed: dispatch_record_id=%s, call_id=%s, ack_status=%s",
+                dispatch_record_id, call_id, ack_status)
 
     try:
-        dispatch_record_id = int(body.dispatch_record_id)
+        dispatch_record_id = int(dispatch_record_id)
     except (ValueError, TypeError):
-        logger.warning("Invalid dispatch_record_id: %s — ignoring webhook", body.dispatch_record_id)
-        return {"status": "ignored", "reason": f"Invalid dispatch_record_id: {body.dispatch_record_id}"}
+        logger.warning("Invalid dispatch_record_id: %s — ignoring webhook", dispatch_record_id)
+        return {"status": "ignored", "reason": f"Invalid dispatch_record_id: {dispatch_record_id}"}
 
     record = db.query(DispatchRecord).filter(DispatchRecord.id == dispatch_record_id).first()
     if not record:
-        raise HTTPException(status_code=404, detail="Dispatch record not found")
+        logger.warning("Dispatch record %d not found — ignoring webhook", dispatch_record_id)
+        return {"status": "ignored", "reason": "Dispatch record not found"}
 
     # Race condition guard: only update if still pending_call
     if record.status.value != "pending_call":
         logger.info("Dispatch %d already has status='%s' — ignoring webhook", dispatch_record_id, record.status.value)
         return {"status": "ignored", "reason": f"Already {record.status.value}"}
 
-    if body.ack_status == "acknowledged":
+    if ack_status == "acknowledged":
         record.status = "acknowledged"
         record.acknowledged_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
         db.commit()
@@ -122,15 +147,16 @@ async def dispatch_ack_webhook(
         cancel_escalation(dispatch_record_id)
 
         # Update emergency status
-        emergency = __import__("app.services.emergency_service", fromlist=["get_emergency"]).get_emergency(db, record.emergency_id)
+        from app.services.emergency_service import get_emergency as ge
+        emergency = ge(db, record.emergency_id)
         if emergency:
-            emergency.status = "dispatched"  # type: ignore[assignment]
+            emergency.status = "dispatched"
             emergency.pipeline_status = "dispatched"
             db.commit()
 
             # Store ACK in BolnaMessageService for polling
             bolna_service = BolnaMessageService()
-            bolna_service.process_webhook(body.call_id, body.ack_status)
+            bolna_service.process_webhook(call_id, ack_status)
 
             # Broadcast acknowledgment
             import asyncio
@@ -144,12 +170,13 @@ async def dispatch_ack_webhook(
         logger.info("Dispatch %d acknowledged by station %d", dispatch_record_id, record.station_id)
         return {"status": "acknowledged"}
 
-    elif body.ack_status in ("rejected", "no_answer", "needs_clarification"):
+    elif ack_status in ("rejected", "no_answer", "needs_clarification", "declined", "failed"):
         # Mark escalated + await redispatch
         record.status = DispatchStatus.escalated
         db.commit()
 
-        emergency = __import__("app.services.emergency_service", fromlist=["get_emergency"]).get_emergency(db, record.emergency_id)
+        from app.services.emergency_service import get_emergency as ge
+        emergency = ge(db, record.emergency_id)
         if emergency:
             emergency.pipeline_status = "awaiting_redispatch"
             db.commit()
@@ -163,7 +190,8 @@ async def dispatch_ack_webhook(
                 "message": "Station did not respond",
             }))
 
-        logger.info("Dispatch %d awaiting redispatch: %s", dispatch_record_id, body.ack_status)
+        logger.info("Dispatch %d awaiting redispatch: %s", dispatch_record_id, ack_status)
         return {"status": "awaiting_redispatch"}
 
-    return {"status": "unknown_ack_status", "ack_status": body.ack_status}
+    logger.info("Unknown ACK status '%s' for dispatch %d — ignoring", ack_status, dispatch_record_id)
+    return {"status": "unknown_ack_status", "ack_status": ack_status}

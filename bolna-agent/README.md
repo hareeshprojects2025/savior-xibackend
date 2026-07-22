@@ -25,16 +25,26 @@ bolna-agent/
 
 ## Inbound Agent (Victim Calls)
 
+### Critical Rule — Call `post_api_emergency` Early
+
+The system prompt enforces a **mandatory early call** rule:
+
+1. **As soon as type + location are known** → call `post_api_emergency` immediately with whatever data is available (empty/unknown fields → empty strings). Do NOT wait for more information.
+2. **On silence or disconnect** → call `post_api_emergency` immediately with whatever was collected.
+3. **Call at most once** — reuse the same `call_id` across both functions.
+
+This ensures the emergency is created in the system as early as possible. The backend auto-geocodes and starts the dispatch pipeline without waiting for the full transcript.
+
 ### Custom Functions
 
 #### post-emergency
-- **Trigger:** LLM calls after collecting emergency info
+- **Trigger:** LLM calls ASAP after type + location known (or on disconnect)
 - **Method:** POST to ngrok → `/api/emergency`
 - **Fields:** emergency_type, location, description (required); caller_name, caller_phone, victim_name, severity, landmark, victims, summary, immediate_danger, call_id (optional)
 - **call_id:** Unique per-call identifier — LLM generates a timestamp/UUID and reuses it across both functions for transcript matching
 
 #### send-transcript-chunk
-- **Trigger:** LLM calls immediately after first greeting, then every ~10 seconds during conversation
+- **Trigger:** LLM calls immediately after first greeting (before `post_api_emergency`), then every ~10 seconds during conversation
 - **Method:** POST to ngrok → `/api/transcript_chunk`
 - **Fields:** transcript_text, speaker (required); emergency_type_detected, call_id (optional)
 - **call_id:** Must match the value used in `post-emergency`
@@ -44,7 +54,8 @@ bolna-agent/
 - Agent intro: "SAVIOR AI Emergency Assistance"
 - Collects: emergency type, caller name, location, landmark, victims, description, severity, immediate dangers
 - Calls `send_transcript_chunk` immediately after greeting (before `post_api_emergency`)
-- Calls `post_api_emergency` once enough info collected
+- **Calls `post_api_emergency` as soon as type + location known** — not after full collection
+- Calls `post_api_emergency` on silence/disconnect too
 - Does NOT transfer calls
 
 ## Outbound Dispatch Agent (Station Calls)
@@ -60,7 +71,7 @@ bolna-agent/
 ### System Prompt Highlights
 
 - Agent intro: "SAVIOR Emergency Dispatch System"
-- Reads incident details from `{{user_data.*}}` variables
+- Reads incident details from `{{user_data.*}}` variables — never uses hardcoded example data
 - Calls `station_ack_response` with ack_status
 - Keeps calls under 60s
 - Bilingual (English + Kannada)
@@ -81,6 +92,8 @@ bolna-agent/
 
 - **Language transfer:** Bolna platform-level language detection can override the system prompt. If the caller speaks mixed languages, configure the agent in the Bolna dashboard to use a single language (English) to prevent transfer.
 - **call_id reliability:** The LLM generates call_id — backend matching by `bolna_call_id` works best when the LLM provides a consistent unique value across both functions.
+- **Outbound trial restriction:** Bolna trial accounts can only call verified phone numbers. Add station numbers in Bolna dashboard → Settings → Verified Phone Numbers, or upgrade the account.
+- **Agent prompt examples:** The outbound dispatch agent's system prompt must NOT contain hardcoded example incident data — the LLM will read examples instead of actual `user_data` variables.
 
 ## Setup
 
@@ -96,5 +109,6 @@ bolna-agent/
 2. Configure voice and language (English)
 3. Upload custom function from `custom-functions/station-ack.json` (update ngrok URL)
 4. Copy system prompt from `prompts/station-ack-prompt.md` into agent prompt field
+   - **IMPORTANT:** Ensure the prompt has NO hardcoded example incident data (no "Fire at 45 MG Road" etc.)
 5. Set webhook URL to `https://YOUR_NGROK.ngrok-free.dev/api/dispatch/ack`
 6. Set `BOLNA_DISPATCH_AGENT_ID` in `.env` to this agent's UUID

@@ -1,10 +1,8 @@
+import asyncio
 import logging
+import re
 
-import httpx
-
-from app.core.config import FAST2SMS_API_KEY
-
-FAST2SMS_URL = "https://www.fast2sms.com/dev/bulkV2"
+from app.core.config import TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER
 
 logger = logging.getLogger("savior.sms")
 
@@ -15,42 +13,46 @@ LOCATION_SMS_TEMPLATE = (
 )
 
 
+def _normalize_phone(phone: str) -> str | None:
+    digits = re.sub(r"\D", "", phone)
+    if len(digits) == 10:
+        return f"+91{digits}"
+    if len(digits) > 10 and not digits.startswith("1"):
+        return f"+{digits}"
+    if digits.startswith("1") and len(digits) == 11:
+        return f"+{digits}"
+    logger.warning("Unable to normalize phone number: %s", phone)
+    return None
+
+
 async def send_sms(phone: str, message: str) -> bool:
-    """Send SMS to a single phone number via Fast2SMS API.
-    CRITICAL: Uses form-encoded data (data=), NOT JSON (json=)."""
-    if not FAST2SMS_API_KEY:
-        logger.warning("FAST2SMS_API_KEY not set — SMS not sent to %s", phone)
+    if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN or not TWILIO_PHONE_NUMBER:
+        logger.warning("Twilio credentials not set — SMS not sent to %s", phone)
         return False
 
-    payload = {
-        "message": message,
-        "language": "english",
-        "route": "q",
-        "numbers": phone,
-    }
-    headers = {
-        "authorization": FAST2SMS_API_KEY,
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Cache-Control": "no-cache",
-    }
+    to_phone = _normalize_phone(phone)
+    if to_phone is None:
+        return False
+
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(FAST2SMS_URL, data=payload, headers=headers, timeout=15)
-            resp.raise_for_status()
-            result = resp.json()
-            if result.get("return"):
-                logger.info("SMS sent to %s: request_id=%s", phone, result.get("request_id"))
-                return True
-            logger.warning("SMS send failed for %s: %s", phone, result)
-            return False
+        from twilio.rest import Client
+
+        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+
+        msg = await asyncio.to_thread(
+            client.messages.create,
+            body=message,
+            from_=TWILIO_PHONE_NUMBER,
+            to=to_phone,
+        )
+        logger.info("SMS sent to %s: sid=%s", to_phone, msg.sid)
+        return True
     except Exception as e:
-        logger.error("SMS send error for %s: %s", phone, e)
+        logger.error("Twilio SMS failed for %s: %s", to_phone, e)
         return False
 
 
 def build_location_sms(phone: str, emergency_id: int, base_url: str) -> tuple[str, str]:
-    """Build SMS message with location capture link.
-    Returns (phone, message_body)."""
-    location_url = f"{base_url}/location/{emergency_id}"
+    location_url = f"{base_url}/api/location/{emergency_id}"
     message = LOCATION_SMS_TEMPLATE.format(location_url=location_url)
     return phone, message

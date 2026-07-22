@@ -70,6 +70,36 @@ async def run_validation_pipeline(db: Session, emergency: Emergency) -> dict:
     return result
 
 
+async def auto_run_full_pipeline(db: Session, emergency: Emergency) -> dict:
+    """Fully automated pipeline: validate → rank → dispatch to top station.
+    No dispatcher involvement needed. Returns final dispatch result."""
+    validation = await run_validation_pipeline(db, emergency)
+    if validation.get("status") != "validated":
+        logger.info("Auto-pipeline stopped at validation for emergency %d: %s", emergency.id, validation.get("status"))
+        return validation
+
+    rankings = await run_ranking_pipeline(db, emergency)
+    if not rankings:
+        logger.warning("Auto-pipeline: no stations found for emergency %d", emergency.id)
+        emergency.pipeline_status = "dispatch_failed"
+        db.commit()
+        await manager.broadcast({"type": "dispatch_failed", "emergency_id": emergency.id})
+        return {"status": "dispatch_failed", "message": "No stations available"}
+
+    top = rankings[0]
+    result = await execute_dispatch(db, emergency.id, top["station"].id)
+    if not result:
+        logger.error("Auto-pipeline: dispatch failed for emergency %d to station %s", emergency.id, top["station"].name)
+        emergency.pipeline_status = "dispatch_failed"
+        db.commit()
+        await manager.broadcast({"type": "dispatch_failed", "emergency_id": emergency.id})
+        return {"status": "dispatch_failed", "message": "Dispatch execution failed"}
+
+    logger.info("Auto-pipeline complete for emergency %d: dispatched to %s (ETA %s min)",
+                emergency.id, top["station"].name, top["eta_minutes"])
+    return result
+
+
 async def run_ranking_pipeline(db: Session, emergency: Emergency) -> list[dict]:
     """Run station ranking after validation passes.
     Gets matching-type stations, computes routes concurrently, sorts by ETA, returns top 5."""
@@ -192,16 +222,31 @@ async def auto_trigger_dispatch_pipeline(db: Session, emergency: Emergency) -> N
         else:
             logger.warning("Failed to send location SMS for emergency %d", emergency.id)
 
-    # If coordinates already provided (e.g., from Bolna), run validation immediately
+    # If coordinates already provided (e.g., from Bolna), run full auto pipeline
     if emergency.latitude is not None and emergency.longitude is not None:
         emergency.pipeline_status = "awaiting_validation"
         db.commit()
         db.refresh(emergency)
-        await run_validation_pipeline(db, emergency)
+        await auto_run_full_pipeline(db, emergency)
     else:
         emergency.pipeline_status = "awaiting_location"
         db.commit()
         db.refresh(emergency)
+
+
+async def resend_location_sms(db: Session, emergency: Emergency) -> bool:
+    """Resend location SMS to the caller's phone. Used when caller_phone is corrected."""
+    if not emergency.caller_phone:
+        logger.warning("No caller_phone for emergency %d — cannot resend SMS", emergency.id)
+        return False
+    if emergency.latitude is not None and emergency.longitude is not None:
+        logger.info("Emergency %d already has coordinates — skipping SMS resend", emergency.id)
+        return False
+    phone, msg = build_location_sms(emergency.caller_phone, emergency.id, BASE_URL)
+    sent = await send_sms(phone, msg)
+    if sent:
+        logger.info("Location SMS resent to %s for emergency %d", phone, emergency.id)
+    return sent
 
 
 async def escalate_dispatch(

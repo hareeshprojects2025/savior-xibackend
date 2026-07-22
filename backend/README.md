@@ -11,8 +11,10 @@ Emergency reporting and dispatch API built with **FastAPI + MySQL**. Two Bolna A
 | Database | MySQL 8+ |
 | Validation | Pydantic |
 | Server | Uvicorn |
-| Geocoding | Nominatim (OpenStreetMap) |
+| Geocoding | Nominatim (OpenStreetMap) + verified location enrichment |
 | Routing | OSRM (HERE Maps fallback) |
+| SMS | Twilio (replaces Fast2SMS) |
+| District Validation | GeoJSON boundary check (NAME_2/NAME_1 fields) |
 
 ## Quick Start
 
@@ -43,7 +45,7 @@ Swagger docs at `http://127.0.0.1:8000/docs`.
 ### Emergency CRUD
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/emergency` | Create emergency (Bolna custom function webhook) — async, auto-geocodes |
+| POST | `/api/emergency` | Create emergency (Bolna custom function webhook) — auto-geocodes, runs validation + auto-dispatch pipeline |
 | GET | `/api/emergencies` | List all emergencies |
 | GET | `/api/emergencies/{id}` | Get single emergency (includes `full_transcript`) |
 | PATCH | `/api/emergencies/{id}/status` | Update status + broadcast via WebSocket |
@@ -67,6 +69,12 @@ Swagger docs at `http://127.0.0.1:8000/docs`.
 | POST | `/api/emergencies/{id}/dispatch` | Execute dispatch — creates DispatchRecord, calls Bolna outbound agent, starts 600s escalation timer |
 | GET | `/api/emergencies/{id}/dispatch/status` | Current dispatch record |
 | POST | `/api/dispatch/ack` | Bolna webhook — station ACK/reject/no-answer → updates pipeline |
+
+### Location Capture
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/location/{emergency_id}` | Serve location capture HTML page (browser Geolocation API) |
+| POST | `/api/location/{emergency_id}` | Receive captured coordinates — triggers auto-pipeline<br/>Sent via SMS link when caller phone known |
 
 ### Stats
 | Method | Path | Description |
@@ -95,20 +103,20 @@ backend/
 │   ├── api/v1/endpoints/     ← Route handlers
 │   │   ├── emergency.py      ← CRUD + filters + stats
 │   │   ├── dispatch.py       ← Station rankings, dispatch, ACK webhook
-│   │   └── transcript.py     ← Chunks + complete webhook
+│   │   └── transcript.py     ← Chunks + complete webhook (4-level matching, auto-create safety net)
 │   ├── core/                 ← Config, database session, WebSocket manager
 │   ├── models/               ← Emergency, TranscriptChunk, Station, DispatchRecord
 │   ├── schemas/              ← Pydantic schemas (inc. AckWebhookBody)
 │   ├── services/             ← Business logic
-│   │   ├── dispatch_service.py    ← Ranking pipeline, execute dispatch, escalation timer
-│   │   ├── message_service.py     ← Bolna outbound call client (BolnaMessageService)
+│   │   ├── dispatch_service.py    ← Ranking, auto-run pipeline (validate→rank→dispatch), escalation timer
+│   │   ├── message_service.py     ← Bolna outbound call client (BolnaMessageService + simulated fallback)
 │   │   ├── emergency_service.py   ← Emergency CRUD helpers
-│   │   ├── station_service.py     ← Station data + ranking
+│   │   ├── station_service.py     ← Station data + ranking + EMERGENCY_TYPE_MAP (expanded)
 │   │   ├── routing_service.py     ← OSRM + HERE Maps routing
-│   │   ├── geocoding_service.py   ← Nominatim geocoding
+│   │   ├── geocoding_service.py   ← Nominatim geocoding + verified location enrichment
 │   │   ├── duplicate_service.py   ← Duplicate detection
-│   │   ├── sms_service.py         ← Fast2SMS integration
-│   │   └── geospatial_service.py  ← District boundary checks
+│   │   ├── sms_service.py         ← Twilio SMS (location capture links)
+│   │   └── geospatial_service.py  ← District boundary checks (GeoJSON)
 │   └── main.py               ← FastAPI app, CORS, mount
 ├── tests/
 │   ├── test_e2e.py           ← End-to-end tests
@@ -139,6 +147,11 @@ backend/
 | `immediate_danger` | String | |
 | `summary` | Text | AI-generated summary |
 | `latitude` / `longitude` | Float | Nullable, geocoded from location + landmark |
+| `location_captured` | Boolean | True when browser Geolocation API submits coords |
+| `geocoding_attempted` | Boolean | True after geocoding service runs |
+| `geocoding_success` | Boolean | True if geocoding found a match |
+| `geocoding_source` | String | "nominatim", "browser_geolocation", or "bolna" |
+| `geo_raw` | JSON | Raw geocoding response for debugging |
 | `status` | Enum | pending → dispatched → en_route → resolved |
 | `full_transcript` | Text | Complete transcript text |
 | `bolna_call_id` | String | Nullable, indexed — Bolna call ID for matching |
@@ -179,6 +192,28 @@ backend/
 
 ## Dispatch Pipeline
 
+### Auto Pipeline (new emergencies with coordinates)
+```
+Emergency created (coords present) → auto_trigger_dispatch_pipeline()
+  → Sends SMS with /api/location/{id} link
+  → auto_run_full_pipeline():
+    → run_validation_pipeline(): district check, duplicate check, severity auto-upgrade
+    → run_ranking_pipeline(): sort stations by OSRM distance/ETA
+    → execute_dispatch(): call top station
+      → Creates DispatchRecord (status=pending_call)
+      → BolnaMessageService.send_dispatch() → POST /call with user_data
+      → Starts 600s escalation timer
+      → Broadcasts dispatch_update via WS
+```
+
+### SMS Location Path (emergencies without coordinates)
+```
+Emergency created (no coords) → SMS sent with /api/location/{id} link
+  → Caller clicks link → browser Geolocation API → POST /api/location/{id}
+  → auto_run_full_pipeline() as above
+```
+
+### Manual Dispatch (dispatcher override)
 ```
 User clicks "Dispatch" → POST /api/emergencies/{id}/dispatch
   → dispatch_service.execute_dispatch()
@@ -195,8 +230,11 @@ Station answers → Bolna outbound agent reads incident details
 
 No response / rejection → POST /api/dispatch/ack (rejected/no_answer)
   → Sets pipeline_status = "awaiting_redispatch"
-  → UI shows remaining stations → dispatcher picks next
+  → Escalates to next station or UI shows remaining stations
 ```
+
+### ACK Webhook (flexible format)
+Accepts payloads from Bolna in multiple formats — supports `dispatch_record_id`, `dispatchId`, or nested in `call_data`/`user_data`/`metadata`. Logs raw body for debugging.
 
 ## Database Schema
 

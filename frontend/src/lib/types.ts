@@ -59,6 +59,11 @@ export interface Emergency {
   district_check: string | null
   pipeline_status: string | null
   dispatch_record_id: number | null
+  geocoded_place_name: string | null
+  geocoded_osm_type: string | null
+  geocoded_osm_key: string | null
+  geocoded_city: string | null
+  geocoded_state: string | null
   created_at: string
 }
 
@@ -74,6 +79,9 @@ export interface EmergencySummary {
   created_at: string
   latitude: number | null
   longitude: number | null
+  geocoded_place_name: string | null
+  geocoded_city: string | null
+  geocoded_state: string | null
 }
 
 export interface EmergencyStats {

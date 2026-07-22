@@ -10,7 +10,7 @@ Dispatcher dashboard built with **React 19 + TypeScript + Vite + Tailwind CSS 4*
 | `/map` | MapPage | Leaflet map with 36×48 teardrop severity markers, auto-pan on new arrivals, popups, no-coordinates overlay, map legend + status filter sidebar |
 | `/stats` | StatsPage | Analytics dashboard — 4 stat cards (total, active, resolved, by severity) + 4 charts (Status Pipeline, Severity Distribution, Hourly Volume, Type Distribution) with Today/Week/Month/Year/5Y time filter |
 | `/transcriptions` | TranscriptionsPage | Call transcript viewer — live transcription cards (dark terminal style with REC indicator), incident history list with severity/status filters, fetch-on-select transcript loading, JSON export |
-| `/dispatch?emergency_id=` | DispatchPage | Station ranking by ETA, route preview on Leaflet map, dispatch button with 600s ACK escalation timer, re-dispatch on no-answer |
+| `/dispatch?emergency_id=` | DispatchPage | Station ranking by ETA, route preview on Leaflet map, dispatch button with 600s ACK escalation timer, re-dispatch on no-answer, auto-dispatch status indicators |
 
 ## Tech Stack
 
@@ -100,7 +100,7 @@ Bolna → Backend API → MySQL
 
 | Event | Trigger |
 |-------|---------|
-| `new_emergency` | Emergency created/updated |
+| `location_received` | Browser Geolocation coordinates submitted |
 | `status_update` | Status changed via PATCH |
 | `transcript_chunk` | Live transcript line during call |
 | `live_transcript` | Real-time session transcript broadcast |
@@ -112,13 +112,19 @@ Bolna → Backend API → MySQL
 ### Dispatch Flow (UI)
 
 ```
+Auto-dispatch path:
+  Emergency with coordinates → auto-ranked → auto-called (if coverage OK)
+  → Dispatch appears in UI with "pending_call" / "escalated" status
+  → Dispatcher can re-dispatch from UI if needed
+
+Manual dispatch path:
 1. Emergency arrives → Feed shows pending badge
 2. Dispatcher clicks → opens Dispatch panel with ?emergency_id=
 3. Station rankings load → cards sorted by ETA
 4. Select station → route preview on map
 5. Click "Dispatch" → POST to backend → "Awaiting Station ACK"
 6a. ACK received → "✓ Dispatch Complete"
-6b. Timeout 600s → "Station did not respond" → select next station → re-dispatch
+6b. Timeout 600s → "Station did not respond" → escalate to next station
 ```
 
 ## Reconnection

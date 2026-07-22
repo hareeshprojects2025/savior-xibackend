@@ -2,24 +2,25 @@
 
 **S**ituational **A**nalysis & **V**irtual **I**ntelligent **O**perational **R**outer
 
-Real-time emergency dispatch system. Dual Bolna AI agents: inbound agent collects incident reports from callers → FastAPI backend stores them → React dispatcher dashboard provides live monitoring, mapping, station ranking, and dispatch coordination via an outbound agent that calls stations for verbal acknowledgment.
+Real-time emergency dispatch system. Dual Bolna AI agents: inbound agent collects incident reports from callers → FastAPI backend stores them, auto-geocodes, runs validation, and auto-dispatches to ranked stations → React dispatcher dashboard provides live monitoring, mapping, station ranking, and dispatch coordination via an outbound agent that calls stations for verbal acknowledgment.
 
 ## Architecture
 
 ```
 Caller → Bolna Inbound Agent → Backend API → MySQL
                      ↓
-            Live Transcript Chunks
-                     ↓
-              WebSocket Stream (WS)
-                     ↓
-            Dispatcher Dashboard (React)
-                     ↓
-         Dispatcher clicks "Dispatch"
-                     ↓
-     Bolna Outbound Agent → Station Phone
-                     ↓
-         Station ACK / No Answer → Webhook
+             Live Transcript Chunks
+                      ↓
+               WebSocket Stream (WS)
+                      ↓
+             Dispatcher Dashboard (React)
+                      ↓
+       Auto-ranking + Auto-dispatch pipeline
+         (or Dispatcher clicks "Dispatch")
+                      ↓
+      Bolna Outbound Agent → Station Phone
+                      ↓
+          Station ACK / No Answer → Webhook
 ```
 
 ## Structure
@@ -130,7 +131,7 @@ The dashboard is at `http://localhost:5173`.
 ### Emergency CRUD
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/emergency` | Create emergency report (from Bolna) |
+| POST | `/api/emergency` | Create emergency report (from Bolna) — auto-geocodes, triggers auto-pipeline |
 | GET | `/api/emergencies` | List all emergencies |
 | GET | `/api/emergencies/{id}` | Get single emergency |
 | PATCH | `/api/emergencies/{id}/status` | Update status (pending → dispatched → en_route → resolved) |
@@ -155,7 +156,13 @@ The dashboard is at `http://localhost:5173`.
 | GET | `/api/emergencies/{id}/dispatch/status` | Current dispatch record status |
 | POST | `/api/dispatch/ack` | Bolna webhook — station ACK/reject/no-answer → updates pipeline |
 
-### Stats & Geocoding
+### Location Capture
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/location/{emergency_id}` | Serve location capture HTML page (browser Geolocation API) |
+| POST | `/api/location/{emergency_id}` | Receive captured coordinates — triggers auto-pipeline |
+
+### Stats
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/emergencies/stats?days=N` | Aggregate stats (by_severity, by_status, by_type, by_hour) |
@@ -225,17 +232,19 @@ Use `curl` to simulate a Bolna agent reporting a fire incident:
 
 ```bash
 curl -X POST http://localhost:8000/api/emergency \
-  -H "Content-Type: application/json" \
-  -d '{
-    "caller_name": "Harish",
-    "caller_phone": "+919876543210",
-    "emergency_type": "Fire",
-    "severity": "Medium",
-    "location": "House No. 45, MG Road, Bangalore",
-    "victims": 3,
-    "description": "Fire with smoke and three people trapped inside.",
-    "immediate_danger": "Smoke"
-  }'
+   -H "Content-Type: application/json" \
+   -d '{
+     "caller_name": "Harish",
+     "caller_phone": "+919876543210",
+     "emergency_type": "Fire",
+     "severity": "Medium",
+     "location": "House No. 45, MG Road, Bengaluru",
+     "latitude": 12.9719,
+     "longitude": 77.5937,
+     "victims": 3,
+     "description": "Fire with smoke and three people trapped inside.",
+     "immediate_danger": "Smoke"
+   }'
 ```
 
 Expected response:

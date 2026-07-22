@@ -13,6 +13,16 @@ from app.services.geocoding_service import geocode_location
 logger = logging.getLogger("savior.emergency")
 
 
+def _apply_geocoding(record: Emergency, result: dict) -> None:
+    record.latitude = result["lat"]
+    record.longitude = result["lng"]
+    record.geocoded_place_name = result.get("place_name")
+    record.geocoded_osm_type = result.get("osm_type")
+    record.geocoded_osm_key = result.get("osm_key")
+    record.geocoded_city = result.get("city")
+    record.geocoded_state = result.get("state")
+
+
 async def create_emergency(db: Session, data: EmergencyCreate, background_geocode: bool = False) -> Emergency:
     record = Emergency(**data.model_dump())
     db.add(record)
@@ -25,9 +35,9 @@ async def create_emergency(db: Session, data: EmergencyCreate, background_geocod
     else:
         # Sync mode: geocode then pipeline
         if record.latitude is None and record.longitude is None and record.location:
-            coords = await geocode_location(record.location, record.landmark)
-            if coords:
-                record.latitude, record.longitude = coords
+            result = await geocode_location(record.location, record.landmark)
+            if result:
+                _apply_geocoding(record, result)
                 db.commit()
                 db.refresh(record)
 
@@ -46,15 +56,15 @@ async def _geocode_and_pipeline(emergency_id: int, location: str, landmark: str 
     from app.services.dispatch_service import auto_trigger_dispatch_pipeline
 
     try:
-        coords = await geocode_location(location, landmark)
+        result = await geocode_location(location, landmark)
         db = SessionLocal()
         try:
             record = db.query(Emergency).filter(Emergency.id == emergency_id).first()
             if not record:
                 logger.warning("Emergency %d not found for background geocoding", emergency_id)
                 return
-            if coords:
-                record.latitude, record.longitude = coords
+            if result:
+                _apply_geocoding(record, result)
                 db.commit()
                 db.refresh(record)
 
@@ -146,7 +156,7 @@ def get_emergency_stats(db: Session, days: int | None = None, today: bool = Fals
         .group_by(Emergency.severity)
         .all()
     )
-    by_severity = {row.severity: row.count for row in severity_rows}
+    by_severity = {row.severity: row.count for row in severity_rows if row.severity is not None}
 
     status_rows = (
         q.with_entities(Emergency.status, func.count(Emergency.id).label("count"))
@@ -222,9 +232,9 @@ async def backfill_coordinates(db: Session) -> dict:
     ).all()
     updated = 0; failed = 0
     for record in records:
-        coords = await geocode_location(record.location, record.landmark)
-        if coords:
-            record.latitude, record.longitude = coords
+        result = await geocode_location(record.location, record.landmark)
+        if result:
+            _apply_geocoding(record, result)
             updated += 1
         else:
             failed += 1

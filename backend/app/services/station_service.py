@@ -60,14 +60,26 @@ STATION_SEED_DATA = [
 
 EMERGENCY_TYPE_MAP = {
     "accident": ["medical", "rescue"],
+    "road accident": ["medical", "rescue", "police"],
+    "car accident": ["medical", "rescue", "police"],
+    "fire": ["fire", "rescue"],
     "flood": ["fire", "rescue"],
     "building collapse": ["fire", "rescue"],
+    "medical": ["medical"],
+    "medical emergency": ["medical"],
+    "heart attack": ["medical"],
+    "police": ["police"],
     "wildlife": ["police"],
+    "domestic violence": ["police"],
+    "natural disaster": ["fire", "rescue", "medical"],
 }
 
 def get_stations_by_type(db: Session, emergency_type: str) -> list[Station]:
     normalized_type = emergency_type.lower()
-    station_types = EMERGENCY_TYPE_MAP.get(normalized_type, [normalized_type])
+    station_types = EMERGENCY_TYPE_MAP.get(normalized_type, None)
+    if station_types is None:
+        # Fallback: try direct match on station type
+        station_types = [normalized_type]
     return db.query(Station).filter(Station.type.in_(station_types)).all()
 
 

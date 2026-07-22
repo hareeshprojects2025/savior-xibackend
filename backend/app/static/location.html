@@ -134,7 +134,31 @@
   .hidden { display: none; }
   .error-text { color: #dc2626; font-size: 13px; margin-top: 8px; }
   .success-text { color: #16a34a; font-size: 13px; margin-top: 8px; font-weight: 600; }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal-content {
+    background: #fff; border-radius: 16px; padding: 24px;
+    max-width: 640px; width: 100%; text-align: center;
+  }
+  .modal-content h3 { font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 12px; }
+  #leaflet-map { height: 380px; border-radius: 12px; margin-bottom: 12px; z-index: 1; }
+  .map-coords {
+    font-size: 13px; color: #475569; margin-bottom: 12px;
+    font-family: 'Courier New', monospace;
+  }
+  .modal-actions { display: flex; gap: 10px; }
+  .modal-actions .btn { flex: 1; }
+  .btn-pin {
+    background: #059669; margin-top: 8px;
+  }
+  .btn-pin:hover { background: #047857; }
 </style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 <div class="card" id="app">
@@ -175,14 +199,28 @@
       <h3>Enter Location Manually</h3>
       <div class="input-group">
         <label for="lat-input">Latitude</label>
-        <input type="number" id="lat-input" step="any" placeholder="e.g., 15.3647">
+        <input type="text" id="lat-input" inputmode="decimal" pattern="-?\d+(\.\d+)?" placeholder="e.g., 15.3647">
       </div>
       <div class="input-group">
         <label for="lng-input">Longitude</label>
-        <input type="number" id="lng-input" step="any" placeholder="e.g., 75.1240">
+        <input type="text" id="lng-input" inputmode="decimal" pattern="-?\d+(\.\d+)?" placeholder="e.g., 75.1240">
       </div>
-      <button class="btn" onclick="submitManualLocation()">Submit Location</button>
+      <button class="btn btn-pin" onclick="openMapPicker()">📍 Pin on Map</button>
+      <button class="btn" onclick="submitManualLocation()" style="margin-top:8px">Submit Location</button>
       <p id="manual-error" class="error-text hidden"></p>
+    </div>
+  </div>
+
+  <!-- Map Modal -->
+  <div id="map-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3>Pin Your Location</h3>
+      <div id="leaflet-map"></div>
+      <p class="map-coords" id="map-coords">Click on the map to drop a pin</p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeMapPicker()">Cancel</button>
+        <button class="btn" onclick="confirmMapLocation()">Confirm Location</button>
+      </div>
     </div>
   </div>
 
@@ -259,6 +297,60 @@
     }
     document.getElementById('manual-error').classList.add('hidden');
     submitLocation(lat, lng);
+  }
+
+  /* ---- Map Picker ---- */
+  let mapInstance = null;
+  let mapMarker = null;
+
+  function openMapPicker() {
+    document.getElementById('map-modal').classList.remove('hidden');
+    document.getElementById('map-coords').textContent = 'Loading map...';
+
+    var centerLat = 20.5937, centerLng = 78.9629;
+
+    function initMap(lat, lng) {
+      if (mapInstance) { mapInstance.remove(); mapInstance = null; }
+      mapInstance = L.map('leaflet-map').setView([lat, lng], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(mapInstance);
+      document.getElementById('map-coords').textContent = 'Click on the map to drop a pin';
+      mapInstance.on('click', onMapClick);
+      setTimeout(function(){ mapInstance.invalidateSize(); }, 200);
+    }
+
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        function(pos) { initMap(pos.coords.latitude, pos.coords.longitude); },
+        function() { initMap(centerLat, centerLng); },
+        { timeout: 5000, enableHighAccuracy: true }
+      );
+    } else {
+      initMap(centerLat, centerLng);
+    }
+  }
+
+  function onMapClick(e) {
+    if (mapMarker) { mapMarker.setLatLng(e.latlng); }
+    else { mapMarker = L.marker(e.latlng, { draggable: true }).addTo(mapInstance); }
+    document.getElementById('map-coords').textContent =
+      'Latitude: ' + e.latlng.lat.toFixed(6) + ' | Longitude: ' + e.latlng.lng.toFixed(6);
+  }
+
+  function confirmMapLocation() {
+    if (!mapMarker) { document.getElementById('map-coords').textContent = 'Please click on the map first!'; return; }
+    var latlng = mapMarker.getLatLng();
+    document.getElementById('lat-input').value = latlng.lat.toFixed(6);
+    document.getElementById('lng-input').value = latlng.lng.toFixed(6);
+    closeMapPicker();
+  }
+
+  function closeMapPicker() {
+    document.getElementById('map-modal').classList.add('hidden');
+    if (mapMarker) { mapMarker.remove(); mapMarker = null; }
+    if (mapInstance) { mapInstance.remove(); mapInstance = null; }
   }
 </script>
 </body>

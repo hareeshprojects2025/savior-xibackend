@@ -40,3 +40,10 @@ class Emergency(Base):
     district_check = Column(String(50), nullable=True)
     pipeline_status = Column(String(50), nullable=True, default=None)
     dispatch_record_id = Column(Integer, nullable=True)
+
+    # Geocoding enrichment fields
+    geocoded_place_name = Column(String(500), nullable=True)
+    geocoded_osm_type = Column(String(10), nullable=True)
+    geocoded_osm_key = Column(String(50), nullable=True)
+    geocoded_city = Column(String(100), nullable=True)
+    geocoded_state = Column(String(100), nullable=True)

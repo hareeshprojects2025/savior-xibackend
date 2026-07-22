@@ -119,6 +119,17 @@ export function EmergencyDetail({ emergency, onStatusChange, onDelete }: Emergen
             </Row>
           )}
           <Row label="Location" value={emergency.location} icon={MapPin} />
+          {emergency.geocoded_place_name && (
+            <Row label="Verified Location" icon={MapPin}>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-base text-gray-900">{emergency.geocoded_place_name}</span>
+                <span className="text-xs text-gray-400">
+                  {[emergency.geocoded_city, emergency.geocoded_state].filter(Boolean).join(", ")}
+                  {emergency.geocoded_osm_key && ` \u00B7 ${emergency.geocoded_osm_key}`}
+                </span>
+              </div>
+            </Row>
+          )}
           {emergency.landmark && <Row label="Landmark" value={emergency.landmark} />}
           {emergency.victims != null && <Row label="Victims" value={`${emergency.victims}`} icon={Users} className="cockpit-number" />}
           {emergency.immediate_danger && (
@@ -156,7 +167,7 @@ export function EmergencyDetail({ emergency, onStatusChange, onDelete }: Emergen
       <Separator className="bg-gray-200" />
       <div>
         <MiniMap key={`map-${emergency.id}-${emergency.latitude ?? "null"}-${emergency.longitude ?? "null"}`} location={emergency.location} lat={emergency.latitude} lng={emergency.longitude} />
-        <p className="text-sm text-gray-600 font-medium mb-1 mt-2">{emergency.location}</p>
+        <p className="text-sm text-gray-600 font-medium mb-1 mt-2">{emergency.geocoded_place_name || emergency.location}</p>
         <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:underline">
           <ExternalLink className="size-3.5" /> Open in Maps
         </a>

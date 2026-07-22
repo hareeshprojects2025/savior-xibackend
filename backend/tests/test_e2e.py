@@ -17,7 +17,7 @@ from app.main import app
 import app.services.emergency_service as _es
 import app.services.geocoding_service as _gs
 
-_gs.geocode_location = lambda loc, landmark=None: None
+_gs.geocode_location = lambda loc, landmark=None: None  # type: ignore[method-assign]
 original_create = _es.create_emergency
 
 

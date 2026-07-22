@@ -31,7 +31,8 @@ const mockEmergencies: Emergency[] = [
     immediate_danger: "Yes", summary: null,
     latitude: 19.076, longitude: 72.8777,
     status: "pending", full_transcript: null,
-    bolna_call_id: null, location_captured: null, district_check: null, pipeline_status: null, dispatch_record_id: null,
+      bolna_call_id: null, location_captured: null, district_check: null, pipeline_status: null, dispatch_record_id: null,
+      geocoded_place_name: null, geocoded_osm_type: null, geocoded_osm_key: null, geocoded_city: null, geocoded_state: null,
     created_at: new Date().toISOString(),
   },
 ]

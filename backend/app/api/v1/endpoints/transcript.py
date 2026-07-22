@@ -11,6 +11,7 @@ from app.core.websocket import manager
 from app.schemas.emergency import EmergencyOut
 from app.schemas.transcript import TranscriptChunkCreate, TranscriptChunkOut
 from app.services.transcript_service import store_chunk, get_chunks, buffer_chunk, flush_buffer
+from app.services.dispatch_service import resend_location_sms
 from app.services.emergency_service import get_emergency
 
 logger = logging.getLogger("savior.transcript")
@@ -145,8 +146,12 @@ async def receive_complete(request: Request, db: Session = Depends(get_db)):
     logger.info("Bolna webhook: call=%s status=%s has_transcript=%s full_payload=%s", bolna_call_id, status, bool(transcript), json.dumps(body)[:500])
 
     if status in ("completed", "call-disconnected"):
-        from app.models.emergency import Emergency
+        from app.models.emergency import Emergency, EmergencyStatus
+        from app.services.dispatch_service import auto_trigger_dispatch_pipeline
+        from datetime import datetime, timedelta, timezone
+
         record = None
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=2)
 
         # Strategy 1: match by bolna_call_id
         if bolna_call_id:
@@ -156,34 +161,66 @@ async def receive_complete(request: Request, db: Session = Depends(get_db)):
             if record:
                 logger.info("Matched by bolna_call_id=%s → emergency id=%s", bolna_call_id, record.id)
 
-        # Strategy 2: match by caller_phone exactly
+        # Strategy 2: match by caller_phone exactly (within 2h, skip completed records)
         if not record and user_number:
             record = db.query(Emergency).filter(
-                Emergency.caller_phone == user_number
+                Emergency.caller_phone == user_number,
+                Emergency.created_at >= cutoff,
+                Emergency.full_transcript.is_(None),
             ).order_by(Emergency.created_at.desc()).first()
             if record:
                 logger.info("Matched by exact phone=%s → emergency id=%s", user_number, record.id)
 
-        # Strategy 3: match by last 10 digits of phone
+        # Strategy 3: match by last 10 digits of phone (within 2h, skip completed records)
         if not record and user_number and len(user_number) >= 10:
             suffix = user_number[-10:]
             record = db.query(Emergency).filter(
-                Emergency.caller_phone.like(f"%{suffix}")
+                Emergency.caller_phone.like(f"%{suffix}"),
+                Emergency.created_at >= cutoff,
+                Emergency.full_transcript.is_(None),
             ).order_by(Emergency.created_at.desc()).first()
             if record:
                 logger.info("Matched by 10-digit suffix=%s → emergency id=%s", suffix, record.id)
 
-        # Strategy 4: most recent emergency without full_transcript
+        # Strategy 4: most recent emergency without full_transcript (within 2h)
         if not record:
             record = db.query(Emergency).filter(
-                Emergency.full_transcript.is_(None)
+                Emergency.full_transcript.is_(None),
+                Emergency.created_at >= cutoff,
             ).order_by(Emergency.created_at.desc()).first()
             if record:
                 logger.info("Matched by no-transcript fallback → emergency id=%s", record.id)
 
+        # Strategy 5: auto-create from webhook data
         if not record and transcript:
-            logger.warning("No emergency found to attach transcript (call=%s, user_number=%s)", bolna_call_id, user_number)
-            return {"status": "acknowledged", "message": "No emergency matched"}
+            call_summary_text = None
+            extracted = body.get("extracted_data") or {}
+            general = extracted.get("General") or {}
+            call_summary = general.get("Call Summary") or {}
+            if call_summary.get("subjective"):
+                call_summary_text = call_summary["subjective"]
+
+            transcript_text = str(transcript)
+            record = Emergency(
+                caller_name="Unknown",
+                caller_phone=user_number,
+                emergency_type="Unknown",
+                location="Unknown",
+                description=call_summary_text or transcript_text[:500],
+                summary=call_summary_text or "",
+                full_transcript=transcript_text,
+                bolna_call_id=bolna_call_id,
+                status=EmergencyStatus.pending,
+            )
+            db.add(record)
+            db.commit()
+            db.refresh(record)
+            logger.info("Auto-created emergency %d from webhook (call=%s)", record.id, bolna_call_id)
+
+            try:
+                await auto_trigger_dispatch_pipeline(db, record)
+            except Exception as e:
+                logger.error("Pipeline trigger failed for auto-created emergency %d: %s", record.id, e)
 
         if record and not transcript:
             logger.info("Webhook received without transcript text (call=%s, emergency=%s) — acknowledging only", bolna_call_id, record.id)
@@ -214,8 +251,19 @@ async def receive_complete(request: Request, db: Session = Depends(get_db)):
                     record.summary = summary_text
                 if not record.description:
                     record.description = summary_text
+
+            # Update caller_phone from real ANI if available
+            if user_number and record.caller_phone != user_number:
+                old_phone = record.caller_phone
+                record.caller_phone = user_number
+                logger.info("Updated caller_phone for emergency %d: %s -> %s", record.id, old_phone, user_number)
+
             db.commit()
             db.refresh(record)
+
+            # Resend location SMS if phone was corrected and coords are still missing
+            if user_number and record.caller_phone == user_number:
+                await resend_location_sms(db, record)
 
             lines = [l.strip() for l in transcript_text.split("\n") if l.strip()]
             for line in lines:

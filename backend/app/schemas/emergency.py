@@ -33,6 +33,11 @@ class EmergencyCreate(BaseModel):
     location_captured: Optional[bool] = None
     district_check: Optional[str] = None
     pipeline_status: Optional[str] = None
+    geocoded_place_name: Optional[str] = None
+    geocoded_osm_type: Optional[str] = None
+    geocoded_osm_key: Optional[str] = None
+    geocoded_city: Optional[str] = None
+    geocoded_state: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -76,6 +81,11 @@ class EmergencyOut(BaseModel):
     district_check: Optional[str] = None
     pipeline_status: Optional[str] = None
     dispatch_record_id: Optional[int] = None
+    geocoded_place_name: Optional[str] = None
+    geocoded_osm_type: Optional[str] = None
+    geocoded_osm_key: Optional[str] = None
+    geocoded_city: Optional[str] = None
+    geocoded_state: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -99,6 +109,9 @@ class EmergencySummary(BaseModel):
     location_captured: Optional[bool] = None
     district_check: Optional[str] = None
     pipeline_status: Optional[str] = None
+    geocoded_place_name: Optional[str] = None
+    geocoded_city: Optional[str] = None
+    geocoded_state: Optional[str] = None
     created_at: datetime
 
     class Config:

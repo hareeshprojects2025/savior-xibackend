@@ -37,7 +37,7 @@ async def get_location_page(emergency_id: int, db: Session = Depends(get_db)):
         logger.error("Location HTML template not found at %s", LOCATION_HTML_PATH)
         raise HTTPException(status_code=500, detail="Location page template not found")
 
-    with open(LOCATION_HTML_PATH, "r") as f:
+    with open(LOCATION_HTML_PATH, "r", encoding="utf-8") as f:
         html = f.read()
 
     html = html.replace("{{EMERGENCY_ID}}", str(emergency_id))
@@ -72,12 +72,13 @@ async def receive_location(
         "longitude": data.longitude,
     })
 
-    # Auto-continue validation pipeline (D-21)
+    # Auto-continue full pipeline (validate → rank → dispatch)
     try:
-        result = await run_validation_pipeline(db, emergency)
-        logger.info("Validation pipeline completed for emergency %d: %s", emergency_id, result.get("status"))
+        from app.services.dispatch_service import auto_run_full_pipeline
+        result = await auto_run_full_pipeline(db, emergency)
+        logger.info("Auto pipeline completed for emergency %d: %s", emergency_id, result.get("status"))
     except Exception as e:
-        logger.error("Validation pipeline failed for emergency %d: %s", emergency_id, e)
+        logger.error("Auto pipeline failed for emergency %d: %s", emergency_id, e)
 
     return {
         "status": "success",

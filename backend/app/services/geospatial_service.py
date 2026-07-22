@@ -31,7 +31,8 @@ def _load_districts() -> list[dict]:
     for feature in data.get("features", []):
         try:
             polygon = shape(feature["geometry"])
-            name = feature.get("properties", {}).get("name", "Unknown")
+            props = feature.get("properties", {})
+            name = props.get("name") or props.get("NAME_2") or props.get("NAME_1") or "Unknown"
             _district_polygons.append({"name": name, "polygon": polygon})
         except Exception as e:
             logger.warning("Failed to parse GeoJSON feature: %s", e)
