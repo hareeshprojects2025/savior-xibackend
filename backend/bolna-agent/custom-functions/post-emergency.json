@@ -1,0 +1,78 @@
+{
+  "name": "post_api_emergency",
+  "description": "Called when user wants to report an emergency with details like caller info, victim info, emergency type, and location",
+  "pre_call_message": "One moment while I report the emergency",
+  "parameters": {
+    "type": "object",
+    "required": [
+      "emergency_type",
+      "location",
+      "description"
+    ],
+    "properties": {
+      "summary": {
+        "type": "string"
+      },
+      "victims": {
+        "type": "integer"
+      },
+      "landmark": {
+        "type": "string"
+      },
+      "location": {
+        "type": "string"
+      },
+      "severity": {
+        "type": "string"
+      },
+      "caller_name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "victim_name": {
+        "type": "string"
+      },
+      "caller_phone": {
+        "type": "string"
+      },
+      "emergency_type": {
+        "type": "string"
+      },
+      "immediate_danger": {
+        "type": "string"
+      },
+      "call_id": {
+        "type": "string",
+        "description": "Unique identifier for this call, used to match transcript to the emergency record"
+      }
+    }
+  },
+  "key": "custom_task",
+  "value": {
+    "method": "POST",
+    "param": {
+      "summary": "%(summary)s",
+      "victims": "%(victims)i",
+      "landmark": "%(landmark)s",
+      "location": "%(location)s",
+      "severity": "%(severity)s",
+      "caller_name": "%(caller_name)s",
+      "description": "%(description)s",
+      "victim_name": "%(victim_name)s",
+      "caller_phone": "%(caller_phone)s",
+      "emergency_type": "%(emergency_type)s",
+      "immediate_danger": "%(immediate_danger)s",
+      "bolna_call_id": "%(call_id)s"
+    },
+    "url": "https://lachelle-ungrounded-jerri.ngrok-free.dev/api/emergency",
+    "api_token": null,
+    "headers": {
+      "accept": "application/json",
+      "Content-Type": "application/json"
+    },
+    "pre_call_webhook_url": null,
+    "pre_call_webhook_param": null
+  }
+}

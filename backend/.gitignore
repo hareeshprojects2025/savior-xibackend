@@ -1,0 +1,45 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+backend/.venv/
+backend/venv/
+.venv/
+venv/
+
+# Environment variables
+.env
+backend/.env
+
+# IDE
+.vscode/
+.idea/
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# Session handoff
+.continue-here*
+
+# GSD / tooling
+.opencode/
+scripts/
+
+# Planning docs (local only)
+.planning/
+
+# Local Python venv
+thor/
+
+# OS
+Thumbs.db
+.DS_Store
+
+frontend/dist/
+.opencode/skills/taste-skill/
+
+.planning
+docs/

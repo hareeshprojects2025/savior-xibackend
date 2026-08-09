@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAVIOR - Location Sharing</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, #1e3a5f 0%, #0f1b2d 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    color: #fff;
+  }
+  .card {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 20px;
+    padding: 40px 32px;
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    color: #1e293b;
+  }
+  .logo {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: #1e3a5f;
+    margin-bottom: 4px;
+  }
+  .logo span { color: #dc2626; }
+  .subtitle {
+    font-size: 14px;
+    color: #64748b;
+    margin-bottom: 24px;
+  }
+  .sos-btn {
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    border: none;
+    background: radial-gradient(circle at 30% 30%, #ef4444, #b91c1c);
+    color: #fff;
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    cursor: pointer;
+    margin: 0 auto 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.6);
+    animation: sos-pulse 2s infinite;
+    transition: transform 0.15s;
+    position: relative;
+  }
+  .sos-btn:hover { transform: scale(1.05); }
+  .sos-btn:active { transform: scale(0.95); }
+  .sos-inner {
+    background: rgba(255,255,255,0.15);
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid rgba(255,255,255,0.3);
+  }
+  @keyframes sos-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.6); }
+    70% { box-shadow: 0 0 0 30px rgba(220, 38, 38, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+  }
+  .status-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    margin: 0 auto 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+  }
+  .status-icon.loading { background: #eff6ff; color: #2563eb; animation: pulse 2s infinite; }
+  .status-icon.success { background: #f0fdf4; color: #16a34a; }
+  .status-icon.error { background: #fef2f2; color: #dc2626; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+  h2 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  p { font-size: 14px; color: #64748b; line-height: 1.5; margin-bottom: 20px; }
+  .manual-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+  .manual-section h3 { font-size: 14px; font-weight: 600; color: #475569; margin-bottom: 12px; }
+  .input-group { margin-bottom: 10px; text-align: left; }
+  .input-group label { display: block; font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 4px; }
+  .input-group input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .input-group input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+  .btn {
+    display: inline-block;
+    padding: 12px 24px;
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    width: 100%;
+  }
+  .btn:hover { background: #1d4ed8; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary {
+    background: transparent;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+    width: auto;
+    padding: 8px 16px;
+    font-size: 13px;
+    margin-top: 4px;
+  }
+  .btn-secondary:hover { background: #f8fafc; border-color: #cbd5e1; }
+  .hidden { display: none; }
+  .error-text { color: #dc2626; font-size: 13px; margin-top: 8px; }
+  .success-text { color: #16a34a; font-size: 13px; margin-top: 8px; font-weight: 600; }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal-content {
+    background: #fff; border-radius: 16px; padding: 24px;
+    max-width: 640px; width: 100%; text-align: center;
+  }
+  .modal-content h3 { font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 12px; }
+  #leaflet-map { height: 380px; border-radius: 12px; margin-bottom: 12px; z-index: 1; }
+  .map-coords {
+    font-size: 13px; color: #475569; margin-bottom: 12px;
+    font-family: 'Courier New', monospace;
+  }
+  .modal-actions { display: flex; gap: 10px; }
+  .modal-actions .btn { flex: 1; }
+  .btn-pin {
+    background: #059669; margin-top: 8px;
+  }
+  .btn-pin:hover { background: #047857; }
+</style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+<div class="card" id="app">
+  <div class="logo">SAVIOR<span>.</span></div>
+  <div class="subtitle">Emergency Location Sharing</div>
+
+  <!-- SOS State (default) -->
+  <div id="sos-state">
+    <button class="sos-btn" id="sos-btn" onclick="triggerGeolocation()">
+      <span class="sos-inner">SOS</span>
+    </button>
+    <h2>Tap to share your location</h2>
+    <p>Emergency responders need your precise location to reach you quickly.</p>
+    <button class="btn btn-secondary" onclick="showManualEntry()">Enter location manually</button>
+  </div>
+
+  <!-- Loading State -->
+  <div id="loading-state" class="hidden">
+    <div class="status-icon loading">&#x27F3;</div>
+    <h2>Requesting your location...</h2>
+    <p>Please allow location access when prompted to help emergency responders reach you.</p>
+  </div>
+
+  <!-- Success State -->
+  <div id="success-state" class="hidden">
+    <div class="status-icon success">&#x2713;</div>
+    <h2>Location Shared Successfully</h2>
+    <p>Your location has been received. Emergency responders are being dispatched to your area.</p>
+    <p class="success-text">You can close this page.</p>
+  </div>
+
+  <!-- Error State -->
+  <div id="error-state" class="hidden">
+    <div class="status-icon error">&#x2715;</div>
+    <h2>Location Access Denied</h2>
+    <p>Please enable location services in your browser settings, or enter your location manually below.</p>
+    <div class="manual-section">
+      <h3>Enter Location Manually</h3>
+      <div class="input-group">
+        <label for="lat-input">Latitude</label>
+        <input type="text" id="lat-input" inputmode="decimal" pattern="-?\d+(\.\d+)?" placeholder="e.g., 15.3647">
+      </div>
+      <div class="input-group">
+        <label for="lng-input">Longitude</label>
+        <input type="text" id="lng-input" inputmode="decimal" pattern="-?\d+(\.\d+)?" placeholder="e.g., 75.1240">
+      </div>
+      <button class="btn btn-pin" onclick="openMapPicker()">📍 Pin on Map</button>
+      <button class="btn" onclick="submitManualLocation()" style="margin-top:8px">Submit Location</button>
+      <p id="manual-error" class="error-text hidden"></p>
+    </div>
+  </div>
+
+  <!-- Map Modal -->
+  <div id="map-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3>Pin Your Location</h3>
+      <div id="leaflet-map"></div>
+      <p class="map-coords" id="map-coords">Click on the map to drop a pin</p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeMapPicker()">Cancel</button>
+        <button class="btn" onclick="confirmMapLocation()">Confirm Location</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="submitting-state" class="hidden">
+    <div class="status-icon loading">&#x27F3;</div>
+    <h2>Submitting location...</h2>
+  </div>
+</div>
+
+<script>
+  const PHONE_NUMBER = "{{PHONE_NUMBER}}";
+  const API_BASE = '';
+
+  function showState(id) {
+    document.querySelectorAll('#sos-state, #loading-state, #success-state, #error-state, #submitting-state').forEach(function(el) {
+      el.classList.add('hidden');
+    });
+    document.getElementById(id).classList.remove('hidden');
+  }
+
+  function showManualEntry() {
+    document.getElementById('manual-error').classList.add('hidden');
+    showState('error-state');
+  }
+
+  function triggerGeolocation() {
+    if ('geolocation' in navigator) {
+      showState('loading-state');
+      navigator.geolocation.getCurrentPosition(
+        function(position) {
+          submitLocation(position.coords.latitude, position.coords.longitude);
+        },
+        function(error) {
+          console.warn('Geolocation error:', error.message);
+          showState('error-state');
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+      );
+    } else {
+      showState('error-state');
+    }
+  }
+
+  async function submitLocation(lat, lng) {
+    showState('submitting-state');
+    try {
+      const res = await fetch(API_BASE + '/api/location/phone/' + PHONE_NUMBER, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ latitude: lat, longitude: lng }),
+      });
+      if (res.ok) {
+        showState('success-state');
+      } else {
+        const err = await res.json();
+        showState('error-state');
+        document.getElementById('manual-error').textContent = err.detail || 'Failed to submit location.';
+        document.getElementById('manual-error').classList.remove('hidden');
+      }
+    } catch (e) {
+      showState('error-state');
+      document.getElementById('manual-error').textContent = 'Network error. Please check your connection.';
+      document.getElementById('manual-error').classList.remove('hidden');
+    }
+  }
+
+  function submitManualLocation() {
+    const lat = parseFloat(document.getElementById('lat-input').value);
+    const lng = parseFloat(document.getElementById('lng-input').value);
+    if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      document.getElementById('manual-error').textContent = 'Enter valid latitude (-90 to 90) and longitude (-180 to 180).';
+      document.getElementById('manual-error').classList.remove('hidden');
+      return;
+    }
+    document.getElementById('manual-error').classList.add('hidden');
+    submitLocation(lat, lng);
+  }
+
+  /* ---- Map Picker ---- */
+  let mapInstance = null;
+  let mapMarker = null;
+
+  function openMapPicker() {
+    document.getElementById('map-modal').classList.remove('hidden');
+    document.getElementById('map-coords').textContent = 'Loading map...';
+
+    var centerLat = 20.5937, centerLng = 78.9629;
+
+    function initMap(lat, lng) {
+      if (mapInstance) { mapInstance.remove(); mapInstance = null; }
+      mapInstance = L.map('leaflet-map').setView([lat, lng], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(mapInstance);
+      document.getElementById('map-coords').textContent = 'Click on the map to drop a pin';
+      mapInstance.on('click', onMapClick);
+      setTimeout(function(){ mapInstance.invalidateSize(); }, 200);
+    }
+
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        function(pos) { initMap(pos.coords.latitude, pos.coords.longitude); },
+        function() { initMap(centerLat, centerLng); },
+        { timeout: 5000, enableHighAccuracy: true }
+      );
+    } else {
+      initMap(centerLat, centerLng);
+    }
+  }
+
+  function onMapClick(e) {
+    if (mapMarker) { mapMarker.setLatLng(e.latlng); }
+    else { mapMarker = L.marker(e.latlng, { draggable: true }).addTo(mapInstance); }
+    document.getElementById('map-coords').textContent =
+      'Latitude: ' + e.latlng.lat.toFixed(6) + ' | Longitude: ' + e.latlng.lng.toFixed(6);
+  }
+
+  function confirmMapLocation() {
+    if (!mapMarker) { document.getElementById('map-coords').textContent = 'Please click on the map first!'; return; }
+    var latlng = mapMarker.getLatLng();
+    document.getElementById('lat-input').value = latlng.lat.toFixed(6);
+    document.getElementById('lng-input').value = latlng.lng.toFixed(6);
+    closeMapPicker();
+  }
+
+  function closeMapPicker() {
+    document.getElementById('map-modal').classList.add('hidden');
+    if (mapMarker) { mapMarker.remove(); mapMarker = null; }
+    if (mapInstance) { mapInstance.remove(); mapInstance = null; }
+  }
+</script>
+</body>
+</html>

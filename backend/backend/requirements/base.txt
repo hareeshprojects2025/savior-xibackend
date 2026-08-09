@@ -1,0 +1,16 @@
+fastapi==0.115.0
+uvicorn==0.30.6
+sqlalchemy==2.0.35
+pymysql==1.1.1
+python-dotenv==1.0.1
+pydantic==2.9.2
+httpx==0.28.1
+twilio==9.5.0
+
+osmnx==2.1.0
+
+networkx==3.6.1
+
+polyline==2.0.4
+
+shapely==2.1.2

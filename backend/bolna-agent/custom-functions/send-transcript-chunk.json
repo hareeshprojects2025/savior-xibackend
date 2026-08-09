@@ -1,0 +1,48 @@
+{
+  "name": "send_transcript_chunk",
+  "description": "Called periodically during the call to send the conversation transcript so far. Call this every 10 seconds while the call is in progress. Pass the entire conversation transcript as the transcript_text parameter.",
+  "pre_call_message": "",
+  "parameters": {
+    "type": "object",
+    "required": [
+      "transcript_text",
+      "speaker"
+    ],
+    "properties": {
+      "transcript_text": {
+        "type": "string",
+        "description": "The full conversation transcript so far"
+      },
+      "speaker": {
+        "type": "string",
+        "description": "Who is speaking right now: 'caller' or 'ai'"
+      },
+      "emergency_type_detected": {
+        "type": "string",
+        "description": "Emergency type identified so far, if any"
+      },
+      "call_id": {
+        "type": "string",
+        "description": "Unique identifier for this call/execution, used to associate transcript chunks with the correct emergency record"
+      }
+    }
+  },
+  "key": "custom_task",
+  "value": {
+    "method": "POST",
+    "param": {
+      "transcript_text": "%(transcript_text)s",
+      "speaker": "%(speaker)s",
+      "emergency_type_detected": "%(emergency_type_detected)s",
+      "call_id": "%(call_id)s"
+    },
+    "url": "https://lachelle-ungrounded-jerri.ngrok-free.dev/api/transcript_chunk",
+    "api_token": null,
+    "headers": {
+      "accept": "application/json",
+      "Content-Type": "application/json"
+    },
+    "pre_call_webhook_url": null,
+    "pre_call_webhook_param": null
+  }
+}
