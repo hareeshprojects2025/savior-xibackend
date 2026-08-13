@@ -18,6 +18,14 @@
         "type": "string",
         "description": "Name of the station being called"
       },
+      "dispatch_record_id": {
+        "type": "string",
+        "description": "System-provided dispatch record ID (from {{user_data.dispatch_record_id}}). Read it from your dispatch details verbatim — never invent or guess it."
+      },
+      "call_id": {
+        "type": "string",
+        "description": "System-provided call/execution ID (from {{user_data.call_id}}). Read it verbatim — never invent or guess it."
+      },
       "ack_status": {
         "type": "string",
         "enum": ["acknowledged", "rejected", "needs_clarification"],
@@ -43,7 +51,8 @@
     "api_token": null,
     "headers": {
       "accept": "application/json",
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      "Authorization": "Bearer YOUR_BOLNA_WEBHOOK_SECRET"
     },
     "pre_call_webhook_url": null,
     "pre_call_webhook_param": null

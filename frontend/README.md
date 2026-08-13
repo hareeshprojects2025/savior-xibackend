@@ -24,8 +24,8 @@ Dispatcher dashboard built with **React 19 + TypeScript + Vite + Tailwind CSS 4*
 | Map | Leaflet + react-leaflet |
 | Icons | Lucide React |
 | Components | shadcn/ui (Radix UI primitives) |
-| Testing | Vitest |
-| Routing | react-router-dom |
+| Testing | Vitest (run via `npx vitest run`) |
+| Routing | react-router-dom v7 |
 
 ## Quick Start
 
@@ -42,10 +42,10 @@ Opens at `http://localhost:5173`. Vite proxies `/api/*` and `/ws` to `http://loc
 | Script | Description |
 |--------|-------------|
 | `npm run dev` | Start dev server with HMR |
-| `npm run build` | Production build |
+| `npm run build` | Type-check (`tsc -b`) + production build |
 | `npm run lint` | Run Oxlint |
-| `npm run typecheck` | `tsc -b --noEmit` |
-| `npm test` | Run Vitest |
+| `npm run preview` | Preview production build locally |
+| `npx vitest run` | Run the Vitest test suite |
 
 ## Project Structure
 
@@ -104,7 +104,9 @@ Bolna → Backend API → MySQL
 | `status_update` | Status changed via PATCH |
 | `transcript_chunk` | Live transcript line during call |
 | `live_transcript` | Real-time session transcript broadcast |
-| `dispatch_update` | Dispatch initiated / ACK received / awaiting redispatch |
+| `dispatch_update` | Dispatch initiated / ranked / ACK received / awaiting redispatch |
+| `dispatch_escalated` | Auto-escalation moved call to next station |
+| `dispatch_failed` | All stations exhausted — manual dispatch needed |
 | `transcript_complete` | Call ended (no transcript body) |
 | `transcript_resolved` | Final transcript + summary available |
 | `emergency_deleted` | Emergency removed |

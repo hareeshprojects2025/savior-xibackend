@@ -24,7 +24,18 @@ def _apply_geocoding(record: Emergency, result: dict) -> None:
 
 
 async def create_emergency(db: Session, data: EmergencyCreate, background_geocode: bool = False) -> Emergency:
+    # Check for existing emergency with same bolna_call_id (idempotent update)
+    if data.bolna_call_id:
+        existing = db.query(Emergency).filter(Emergency.bolna_call_id == data.bolna_call_id).first()
+        if existing:
+            logger.info("Emergency with bolna_call_id=%s exists (id=%d) — merging update", data.bolna_call_id, existing.id)
+            return await _merge_emergency_update(db, existing, data)
+
     record = Emergency(**data.model_dump())
+    # Mid-call creations (post_api_emergency carries bolna_call_id) gate the
+    # auto-dispatch until the transcript-complete webhook ends the call.
+    if data.bolna_call_id:
+        record.inbound_call_active = True
     db.add(record)
     db.commit()
     db.refresh(record)
@@ -47,6 +58,39 @@ async def create_emergency(db: Session, data: EmergencyCreate, background_geocod
         except Exception as e:
             logger.error("Dispatch pipeline trigger failed for emergency %d: %s", record.id, e)
 
+    return record
+
+
+async def _merge_emergency_update(db: Session, record: Emergency, data: EmergencyCreate) -> Emergency:
+    """Merge non-empty fields from data into existing emergency record.
+    Empty strings are already normalized to None by EmergencyCreate validator.
+    victims: only overwrite if new value > 0 or existing is None.
+    """
+    update_data = data.model_dump(exclude_unset=True, exclude={"bolna_call_id"})
+    
+    for key, value in update_data.items():
+        if value is None or value == "":
+            continue
+        if key == "victims":
+            # Only overwrite victims if new value > 0 (fixes false 0 from early report)
+            # or if existing is None (never set)
+            if value > 0 or record.victims is None:
+                setattr(record, key, value)
+            continue
+        setattr(record, key, value)
+
+    # If location or landmark changed and we don't have coords, trigger re-geocode
+    location_changed = "location" in update_data and update_data["location"]
+    landmark_changed = "landmark" in update_data and update_data.get("landmark") is not None
+    if (location_changed or landmark_changed) and (record.latitude is None or record.longitude is None):
+        result = await geocode_location(record.location, record.landmark)
+        if result:
+            _apply_geocoding(record, result)
+
+    db.commit()
+    db.refresh(record)
+
+    logger.info("Merged update for emergency %d (bolna_call_id=%s)", record.id, record.bolna_call_id)
     return record
 
 

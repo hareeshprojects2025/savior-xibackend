@@ -21,7 +21,7 @@ _gs.geocode_location = lambda loc, landmark=None: None  # type: ignore[method-as
 original_create = _es.create_emergency
 
 
-async def _safe_create_emergency(db, data):
+async def _safe_create_emergency(db, data, background_geocode: bool = False):
     from app.models.emergency import Emergency
     record = Emergency(**data.model_dump())
     db.add(record)

@@ -28,6 +28,8 @@ export interface DispatchRecord {
   status: DispatchStatus
   dispatched_at: string | null
   acknowledged_at: string | null
+  ack_deadline: string | null
+  call_status: string | null
   created_at: string
 }
 
@@ -112,6 +114,7 @@ export interface WsMessage {
   station_id?: number
   station_name?: string
   rankings_available?: number
+  call_status?: string
   previous_station_id?: number
   next_station_id?: number
   latitude?: number

@@ -10,7 +10,14 @@ from app.core.database import get_db
 from app.core.websocket import manager
 from app.schemas.emergency import EmergencyOut
 from app.schemas.transcript import TranscriptChunkCreate, TranscriptChunkOut
-from app.services.transcript_service import store_chunk, get_chunks, buffer_chunk, flush_buffer
+from app.services.transcript_service import (
+    store_chunk,
+    get_chunks,
+    buffer_chunk,
+    flush_buffer,
+    extract_emergency_intel,
+    apply_transcript_intel,
+)
 from app.services.dispatch_service import resend_location_sms
 from app.services.emergency_service import get_emergency
 
@@ -191,6 +198,20 @@ async def receive_complete(request: Request, db: Session = Depends(get_db)):
             if record:
                 logger.info("Matched by no-transcript fallback → emergency id=%s", record.id)
 
+        # Strategy 4A: this exact transcript was already stored by an earlier
+        # terminal webhook of the same call (Bolna re-fires call-disconnected
+        # then completed). The mid-call record's bolna_call_id is an agent
+        # timestamp, not the UUID, so call_id matching can't find it — reuse by
+        # transcript instead of auto-creating a duplicate.
+        if not record and transcript:
+            transcript_text = str(transcript)
+            record = db.query(Emergency).filter(
+                Emergency.full_transcript == transcript_text,
+                Emergency.created_at >= cutoff,
+            ).order_by(Emergency.created_at.desc()).first()
+            if record:
+                logger.info("Matched by identical stored transcript → emergency id=%s (re-fired webhook)", record.id)
+
         # Strategy 5: auto-create from webhook data
         if not record and transcript:
             call_summary_text = None
@@ -201,13 +222,18 @@ async def receive_complete(request: Request, db: Session = Depends(get_db)):
                 call_summary_text = call_summary["subjective"]
 
             transcript_text = str(transcript)
+            intel = extract_emergency_intel(transcript_text)
             record = Emergency(
-                caller_name="Unknown",
+                caller_name=intel.get("caller_name") or "Unknown",
                 caller_phone=user_number,
-                emergency_type="Unknown",
+                emergency_type=intel.get("emergency_type") or "Unknown",
                 location="Unknown",
-                description=call_summary_text or transcript_text[:500],
-                summary=call_summary_text or "",
+                description=call_summary_text or intel.get("summary") or transcript_text[:500],
+                summary=call_summary_text or intel.get("summary") or "",
+                landmark=intel.get("landmark"),
+                victims=intel.get("victims"),
+                severity=intel.get("severity"),
+                immediate_danger=intel.get("immediate_danger"),
                 full_transcript=transcript_text,
                 bolna_call_id=bolna_call_id,
                 status=EmergencyStatus.pending,
@@ -227,6 +253,14 @@ async def receive_complete(request: Request, db: Session = Depends(get_db)):
             if bolna_call_id and not record.bolna_call_id:
                 record.bolna_call_id = bolna_call_id
                 db.commit()
+
+            # Call has ended — release the inbound-call gate and dispatch if ready
+            from app.services.dispatch_service import dispatch_after_call_end
+            try:
+                await dispatch_after_call_end(db, record)
+            except Exception as e:
+                logger.error("Call-end dispatch trigger failed for emergency %d: %s", record.id, e)
+
             await manager.broadcast({
                 "type": "transcript_complete",
                 "emergency_id": record.id,
@@ -236,6 +270,19 @@ async def receive_complete(request: Request, db: Session = Depends(get_db)):
 
         if record and transcript:
             transcript_text = str(transcript)
+
+            # Idempotency guard: if this exact transcript is already stored,
+            # this terminal webhook was already fully processed. Update call-id
+            # linkage and acknowledge — don't duplicate chunks, re-broadcast, or
+            # re-run the dispatch pipeline.
+            if record.full_transcript and record.full_transcript == transcript_text:
+                if bolna_call_id and not record.bolna_call_id:
+                    record.bolna_call_id = bolna_call_id
+                    db.commit()
+                logger.info("Emergency %d already has this transcript — duplicate terminal webhook, acknowledging", record.id)
+                clean_stale_sessions(body)
+                return {"status": "acknowledged", "message": "Transcript already stored"}
+
             summary_text = None
             extracted = body.get("extracted_data") or {}
             general = extracted.get("General") or {}
@@ -251,6 +298,11 @@ async def receive_complete(request: Request, db: Session = Depends(get_db)):
                     record.summary = summary_text
                 if not record.description:
                     record.description = summary_text
+            else:
+                # Fallback: Bolna extracted_data absent — mine the transcript
+                intel = extract_emergency_intel(transcript_text)
+                if apply_transcript_intel(record, intel):
+                    logger.info("Backfilled intel for emergency %d from transcript", record.id)
 
             # Update caller_phone from real ANI if available
             if user_number and record.caller_phone != user_number:
@@ -308,6 +360,14 @@ async def receive_complete(request: Request, db: Session = Depends(get_db)):
                 "type": "new_emergency",
                 "data": EmergencyOut.model_validate(record).model_dump(),
             })
+
+            # Call has ended — release the inbound-call gate and auto-dispatch
+            from app.services.dispatch_service import dispatch_after_call_end
+            try:
+                await dispatch_after_call_end(db, record)
+            except Exception as e:
+                logger.error("Call-end dispatch trigger failed for emergency %d: %s", record.id, e)
+
             return {"status": "success", "message": "Transcript saved successfully.", "emergency_id": record.id}
 
     # Acknowledge all webhooks to stop Bolna retries

@@ -24,6 +24,10 @@ class DispatchRecord(Base):
     status = Column(SAEnum(DispatchStatus), default=DispatchStatus.pending_call, nullable=False)
     dispatched_at = Column(DateTime, nullable=True)
     acknowledged_at = Column(DateTime, nullable=True)
+    call_id = Column(String(255), nullable=True, default=None)
+    bolna_execution_id = Column(String(255), nullable=True, default=None)
+    ack_deadline = Column(DateTime, nullable=True, default=None)
+    call_status = Column(String(50), nullable=True, default=None)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     def __repr__(self) -> str:

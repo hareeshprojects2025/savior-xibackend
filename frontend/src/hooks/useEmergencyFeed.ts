@@ -10,6 +10,7 @@ export interface TranscriptLine {
 interface UseEmergencyFeedOptions {
   onNewEmergency?: (emergency: Emergency) => void
   onStatusUpdate?: (id: number, status: string) => void
+  onDispatchEvent?: (msg: WsMessage) => void
 }
 
 export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
@@ -156,6 +157,7 @@ export function useEmergencyFeed(options?: UseEmergencyFeedOptions) {
                     : e
                 )
               )
+              options?.onDispatchEvent?.(msg)
             }
             break
 

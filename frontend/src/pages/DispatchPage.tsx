@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react"
 import { useSearchParams } from "react-router-dom"
-import { Loader2, RadioTower, MapPin, AlertTriangle, Users, ArrowLeft } from "lucide-react"
+import { Loader2, RadioTower, MapPin, AlertTriangle, Users, ArrowLeft, PhoneCall, Lock } from "lucide-react"
 import polyline from "@mapbox/polyline"
 import { useEmergencyFeedContext } from "@/hooks/EmergencyFeedContext"
 import { useDispatch } from "@/hooks/useDispatch"
@@ -117,6 +117,11 @@ function EmergencySelector({ emergencies, onSelect }: { emergencies: Emergency[]
             <MapPin className="size-3.5 shrink-0" />
             <span className="truncate">{e.location}</span>
           </div>
+          {e.pipeline_status === "awaiting_call_complete" && (
+            <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 rounded-md px-2 py-1">
+              <PhoneCall className="size-3" /> Caller still on line — dispatch locked until call ends
+            </p>
+          )}
         </div>
       ))}
       {emergencies.filter((e) => e.status === "pending" && e.pipeline_status !== "pending_manual_review").length === 0 && (
@@ -128,7 +133,7 @@ function EmergencySelector({ emergencies, onSelect }: { emergencies: Emergency[]
 
 export function DispatchPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const { emergencies } = useEmergencyFeedContext()
+  const { emergencies, dispatchEvent } = useEmergencyFeedContext()
   const { stations, error, dispatchState, fetchRankings, confirmDispatch } = useDispatch()
 
   const emergencyIdParam = searchParams.get("emergency_id")
@@ -141,10 +146,13 @@ export function DispatchPage() {
   const [dispatchRecordId, setDispatchRecordId] = useState<number | null>(null)
   const [triedStationIds, setTriedStationIds] = useState<number[]>([])
   const [currentStatus, setCurrentStatus] = useState<"pending_call" | "acknowledged" | "escalated" | "dispatch_failed" | "awaiting_redispatch">("pending_call")
+  const [callStatus, setCallStatus] = useState<string | null>(null)
 
   const selectedEmergency = emergencyId != null
     ? emergencies.find((e) => e.id === emergencyId) ?? null
     : null
+
+  const isCallLocked = selectedEmergency?.pipeline_status === "awaiting_call_complete"
 
   // Auto-trigger or manual select
   const selectEmergency = (id: number) => {
@@ -154,6 +162,7 @@ export function DispatchPage() {
     setDispatchStartedAt(null)
     setTriedStationIds([])
     setCurrentStatus("pending_call")
+    setCallStatus(null)
   }
 
   // When emergencyId changes (from param or WS), fetch rankings
@@ -180,6 +189,7 @@ export function DispatchPage() {
   // Handle dispatch confirmation — creates DispatchRecord, waits for ACK
   const handleConfirmDispatch = async (stationId: number) => {
     if (emergencyId == null) return
+    if (isCallLocked) return
     const result = await confirmDispatch(emergencyId, stationId)
     if (result) {
       setTriedStationIds((prev) => [...prev, stationId])
@@ -198,6 +208,13 @@ export function DispatchPage() {
       setCurrentStatus(ps as typeof currentStatus)
     }
   }, [selectedEmergency?.pipeline_status])
+
+  // Track live call status (ringing/connected/...) for the selected emergency
+  useEffect(() => {
+    if (dispatchEvent?.emergency_id === emergencyId) {
+      setCallStatus(dispatchEvent.call_status ?? null)
+    }
+  }, [dispatchEvent, emergencyId])
 
   // Decode route coords from selected station
   const selectedRanking = selectedStationId != null
@@ -336,6 +353,16 @@ export function DispatchPage() {
                     <h3 className="text-sm font-bold text-gray-900 mb-3">
                       Ranked Stations ({stations.length})
                     </h3>
+                    {isCallLocked && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 mb-3">
+                        <p className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
+                          <Lock className="size-3.5" /> Dispatch locked — caller is still on the line
+                        </p>
+                        <p className="text-xs text-amber-600 mt-0.5">
+                          The station call will be placed automatically the moment the caller's call ends.
+                        </p>
+                      </div>
+                    )}
                     {currentStatus === "awaiting_redispatch" && (
                       <div className="rounded-xl border border-red-200 bg-red-50 p-3 mb-3">
                         <p className="text-sm font-bold text-red-800">Station did not respond</p>
@@ -345,17 +372,18 @@ export function DispatchPage() {
                     <div className="space-y-3">
                       {stations.map((ranking, idx) => {
                         const stationTried = triedStationIds.includes(ranking.station.id)
+                        const unavailable = stationTried || isCallLocked
                         return (
                           <div
                             key={ranking.station.id}
-                            onClick={() => !stationTried && setSelectedStationId(ranking.station.id)}
+                            onClick={() => !unavailable && setSelectedStationId(ranking.station.id)}
                           >
                             <StationCard
                               ranking={ranking}
                               rank={idx + 1}
                               isSelected={ranking.station.id === selectedStationId}
-                              onSelect={() => !stationTried && setSelectedStationId(ranking.station.id)}
-                              disabled={stationTried}
+                              onSelect={() => !unavailable && setSelectedStationId(ranking.station.id)}
+                              disabled={unavailable}
                             />
                           </div>
                         )
@@ -396,7 +424,7 @@ export function DispatchPage() {
         </div>
 
         {/* Dispatch button — floating at bottom of left column */}
-        {emergencyId && selectedEmergency && dispatchState === "ready" && (
+        {emergencyId && selectedEmergency && dispatchState === "ready" && !isCallLocked && (
           <div className="absolute bottom-0 left-0 w-[30%] p-3">
             <Button
               onClick={() => handleConfirmDispatch(selectedStationId!)}
@@ -404,6 +432,19 @@ export function DispatchPage() {
             >
               Dispatch to Selected Station
             </Button>
+          </div>
+        )}
+        {emergencyId && selectedEmergency && dispatchState === "ready" && isCallLocked && (
+          <div className="absolute bottom-0 left-0 w-[30%] p-3">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-center shadow-sm">
+              <p className="text-sm font-bold text-amber-800 flex items-center justify-center gap-1.5">
+                <Lock className="size-3.5" /> Dispatch Locked
+              </p>
+              <p className="text-xs text-amber-600 mt-0.5">
+                <PhoneCall className="size-3 inline mr-1" />
+                Caller still on the line — auto-dispatch fires when the call ends
+              </p>
+            </div>
           </div>
         )}
         {emergencyId && selectedEmergency && dispatchState === "dispatching" && (
@@ -418,7 +459,13 @@ export function DispatchPage() {
           <div className="absolute bottom-0 left-0 w-[30%] p-3">
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-center shadow-sm">
               <p className="text-sm font-bold text-amber-800">Awaiting Station ACK</p>
-              <p className="text-xs text-amber-600 mt-0.5">Waiting for station to acknowledge dispatch...</p>
+              <p className="text-xs text-amber-600 mt-0.5">
+                {callStatus === "ringing" ? "Ringing station…" :
+                 callStatus === "connected" || callStatus === "in-progress" || callStatus === "in_progress" ? "Station connected — waiting for verbal acknowledgment" :
+                 callStatus === "stopped" ? "Call stopped after no answer" :
+                 callStatus === "call_error" ? "Call placement failed — check station" :
+                 "Waiting for station to acknowledge dispatch..."}
+              </p>
             </div>
           </div>
         )}
@@ -482,6 +529,7 @@ export function DispatchPage() {
                     setCurrentStatus("awaiting_redispatch")
                   }}
                   status={currentStatus}
+                  callStatus={callStatus}
                 />
               </div>
             </div>

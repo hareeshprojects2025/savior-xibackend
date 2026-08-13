@@ -2,25 +2,25 @@
 
 **S**ituational **A**nalysis & **V**irtual **I**ntelligent **O**perational **R**outer
 
-Real-time emergency dispatch system. Dual Bolna AI agents: inbound agent collects incident reports from callers → FastAPI backend stores them, auto-geocodes, runs validation, and auto-dispatches to ranked stations → React dispatcher dashboard provides live monitoring, mapping, station ranking, and dispatch coordination via an outbound agent that calls stations for verbal acknowledgment.
+Real-time emergency dispatch system. Dual Bolna AI agents: an inbound agent collects incident reports from callers → the FastAPI backend stores them, auto-geocodes (Photon), runs a validation pipeline (district check, duplicate detection), sends a Twilio SMS with a location-capture link, and auto-dispatches to ranked stations → the React dispatcher dashboard provides live monitoring, mapping, station ranking, and dispatch coordination via an outbound Bolna agent that calls stations for verbal acknowledgment.
 
 ## Architecture
 
 ```
 Caller → Bolna Inbound Agent → Backend API → MySQL
+                     ↓                    ↓
+             Live Transcript Chunks  Twilio SMS (location link)
+                     ↓                    ↓
+              WebSocket Stream (WS)  Browser Geolocation
                      ↓
-             Live Transcript Chunks
-                      ↓
-               WebSocket Stream (WS)
-                      ↓
              Dispatcher Dashboard (React)
-                      ↓
-       Auto-ranking + Auto-dispatch pipeline
+                     ↓
+       Validation → Ranking → Auto-dispatch pipeline
          (or Dispatcher clicks "Dispatch")
-                      ↓
+                     ↓
       Bolna Outbound Agent → Station Phone
-                      ↓
-          Station ACK / No Answer → Webhook
+                     ↓
+         Station ACK / No Answer → Webhook
 ```
 
 ## Structure
@@ -49,31 +49,43 @@ CREATE DATABASE IF NOT EXISTS savior_db
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 ```
-#### 1.1 Create emergency table and transcript_chunks table
+
+The backend auto-creates all tables on first startup (`Base.metadata.create_all` in `app/main.py`), so the SQL below is only needed for manual setups.
+
+#### 1.1 Tables (current schema)
+
 ```sql
 CREATE TABLE emergencies (
-  id            INT           NOT NULL AUTO_INCREMENT,
-  caller_name   VARCHAR(255)  NOT NULL,
-  caller_phone  VARCHAR(20)   DEFAULT NULL,
-  victim_name   VARCHAR(255)  DEFAULT NULL,
-  emergency_type VARCHAR(100) NOT NULL,
-  severity      VARCHAR(50)   DEFAULT NULL,
-  location      VARCHAR(500)  NOT NULL,
-  landmark      VARCHAR(500)  DEFAULT NULL,
-  victims       INT           DEFAULT NULL,
-  description   TEXT          DEFAULT NULL,
-  immediate_danger VARCHAR(255) DEFAULT NULL,
-  summary       TEXT          DEFAULT NULL,
-  latitude      FLOAT         DEFAULT NULL,
-  longitude     FLOAT         DEFAULT NULL,
-  status        VARCHAR(20)   NOT NULL DEFAULT 'pending',
-  full_transcript TEXT        DEFAULT NULL,
-  bolna_call_id VARCHAR(255)  DEFAULT NULL,
-  created_at    DATETIME      DEFAULT NULL,
+  id                 INT           NOT NULL AUTO_INCREMENT,
+  caller_name        VARCHAR(255)  NOT NULL,
+  caller_phone       VARCHAR(20)   DEFAULT NULL,
+  victim_name        VARCHAR(255)  DEFAULT NULL,
+  emergency_type     VARCHAR(100)  NOT NULL,
+  severity           VARCHAR(50)   DEFAULT NULL,
+  location           VARCHAR(500)  NOT NULL,
+  landmark           VARCHAR(500)  DEFAULT NULL,
+  victims            INT           DEFAULT NULL,
+  description        TEXT          DEFAULT NULL,
+  immediate_danger   VARCHAR(255)  DEFAULT NULL,
+  summary            TEXT          DEFAULT NULL,
+  status             VARCHAR(20)   NOT NULL DEFAULT 'pending',
+  latitude           FLOAT         DEFAULT NULL,
+  longitude          FLOAT         DEFAULT NULL,
+  full_transcript    TEXT          DEFAULT NULL,
+  bolna_call_id      VARCHAR(255)  DEFAULT NULL,
+  created_at         DATETIME      DEFAULT NULL,
+  location_captured  TINYINT(1)    DEFAULT 0,
+  district_check     VARCHAR(50)   DEFAULT NULL,
+  pipeline_status    VARCHAR(50)   DEFAULT NULL,
+  dispatch_record_id INT           DEFAULT NULL,
+  geocoded_place_name VARCHAR(500) DEFAULT NULL,
+  geocoded_osm_type  VARCHAR(10)   DEFAULT NULL,
+  geocoded_osm_key   VARCHAR(50)   DEFAULT NULL,
+  geocoded_city      VARCHAR(100)  DEFAULT NULL,
+  geocoded_state     VARCHAR(100)  DEFAULT NULL,
   PRIMARY KEY (id),
   INDEX ix_emergencies_bolna_call_id (bolna_call_id)
 );
-
 
 CREATE TABLE transcript_chunks (
   id            INT           NOT NULL AUTO_INCREMENT,
@@ -86,6 +98,39 @@ CREATE TABLE transcript_chunks (
   CONSTRAINT fk_transcript_chunks_emergency
     FOREIGN KEY (emergency_id) REFERENCES emergencies(id) ON DELETE CASCADE
 );
+
+CREATE TABLE stations (
+  id         INT           NOT NULL AUTO_INCREMENT,
+  name       VARCHAR(255)  NOT NULL,
+  type       VARCHAR(20)   NOT NULL,
+  latitude   FLOAT         DEFAULT NULL,
+  longitude  FLOAT         DEFAULT NULL,
+  address    TEXT          DEFAULT NULL,
+  phone      VARCHAR(20)   DEFAULT NULL,
+  PRIMARY KEY (id)
+);
+
+CREATE TABLE dispatch_records (
+  id              INT           NOT NULL AUTO_INCREMENT,
+  emergency_id    INT           NOT NULL,
+  station_id      INT           NOT NULL,
+  status          VARCHAR(30)   NOT NULL DEFAULT 'pending_call',
+  dispatched_at   DATETIME      DEFAULT NULL,
+  acknowledged_at DATETIME      DEFAULT NULL,
+  call_id         VARCHAR(255)  DEFAULT NULL,
+  created_at      DATETIME      DEFAULT NULL,
+  PRIMARY KEY (id),
+  INDEX ix_dispatch_records_emergency_id (emergency_id)
+);
+```
+
+#### 1.2 Seed stations
+
+The dispatch pipeline needs station data. Seed it once (40 stations: 21 police, 5 fire, 11 medical, 3 rescue — Hubli/Dharwad region):
+
+```bash
+cd backend
+..\thor\Scripts\python -m app.seed_stations
 ```
 
 ### 2. Configure environment
@@ -95,10 +140,23 @@ cd backend
 copy .env.example .env
 ```
 
-Edit `.env` with your MySQL password:
+Edit `.env` with your credentials:
 
 ```
 DATABASE_URL=mysql+pymysql://root:YOUR_PASSWORD@localhost:3306/savior_db
+
+# Bolna AI agents
+BOLNA_API_TOKEN=bn-your_bolna_api_token_here
+BOLNA_AGENT_ID=your_inbound_agent_id_here
+BOLNA_DISPATCH_AGENT_ID=your_dispatch_agent_id_here
+
+# Twilio SMS (location capture links)
+TWILIO_ACCOUNT_SID=your_account_sid
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_PHONE_NUMBER=+1234567890
+
+# Public base URL used in SMS location links (use your ngrok URL when testing Bolna)
+BASE_URL=http://localhost:8000
 ```
 
 ### 3. Install backend dependencies
@@ -140,7 +198,7 @@ The dashboard is at `http://localhost:5173`.
 ### Filters & Queries
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/emergencies/recent?limit=&offset=` | Paginated recent emergencies |
+| GET | `/api/emergencies/recent?limit=&offset=&in_coverage=` | Paginated recent emergencies (optional `in_coverage` filters out manual-review items) |
 | GET | `/api/emergencies/type/{type}` | Filter by type |
 | GET | `/api/emergencies/severity/{severity}` | Filter by severity |
 | GET | `/api/emergencies/location/{location}` | Search by location (LIKE) |
@@ -151,8 +209,8 @@ The dashboard is at `http://localhost:5173`.
 ### Dispatch
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/emergencies/{id}/stations` | Ranked stations for an emergency (OSRM routing) |
-| POST | `/api/emergencies/{id}/dispatch` | Dispatch to a station — creates DispatchRecord, calls Bolna outbound agent |
+| GET | `/api/emergencies/{id}/stations` | Ranked stations for an emergency (OSMnx road-network routing + Haversine fallback) |
+| POST | `/api/emergencies/{id}/dispatch` | Dispatch to a station — creates DispatchRecord, calls Bolna outbound agent, starts 600s escalation timer |
 | GET | `/api/emergencies/{id}/dispatch/status` | Current dispatch record status |
 | POST | `/api/dispatch/ack` | Bolna webhook — station ACK/reject/no-answer → updates pipeline |
 
@@ -165,7 +223,7 @@ The dashboard is at `http://localhost:5173`.
 ### Stats
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/emergencies/stats?days=N` | Aggregate stats (by_severity, by_status, by_type, by_hour) |
+| GET | `/api/emergencies/stats?days=N&today=true` | Aggregate stats (by_severity, by_status, by_type, by_hour in IST) — optional `today` filters to current IST calendar day |
 | POST | `/api/emergencies/geocode` | Backfill missing lat/lng for all records |
 
 ### Transcript
@@ -179,7 +237,7 @@ The dashboard is at `http://localhost:5173`.
 ### WebSocket
 | Endpoint | Description |
 |----------|-------------|
-| WS | `/ws` | Real-time event stream — `new_emergency`, `status_update`, `transcript_chunk`, `transcript_complete`, `transcript_resolved`, `live_transcript`, `emergency_deleted`. Supports `{"type":"ping"}` keepalive. |
+| WS | `/ws` | Real-time event stream — `new_emergency`, `status_update`, `location_received`, `dispatch_update`, `dispatch_escalated`, `dispatch_failed`, `transcript_chunk`, `transcript_complete`, `transcript_resolved`, `live_transcript`, `emergency_deleted`. Supports `{"type":"ping"}` keepalive. |
 
 ## Frontend Overview
 
@@ -204,12 +262,13 @@ Built with **React 19 + TypeScript + Vite + Tailwind CSS 4**.
 
 ## Quick Start
 
-1. **Create the MySQL database** — Run the SQL in [Setup section](#1-create-the-database) to create `savior_db`, the `emergencies` table, and the `transcript_chunks` table.
+1. **Create the MySQL database** — Run the SQL in [Setup section](#1-create-the-database) to create `savior_db`. Tables are auto-created on first backend startup.
 
-2. **Start the backend** — Copy `.env.example` to `.env` in the `backend/` directory, set your MySQL password, then run:
+2. **Start the backend** — Copy `.env.example` to `.env` in the `backend/` directory, set your MySQL password (plus Bolna/Twilio keys if you want live calls and SMS), then run:
    ```bash
    cd backend
    ..\thor\Scripts\pip install -r requirements\dev.txt
+   ..\thor\Scripts\python -m app.seed_stations
    ..\thor\Scripts\uvicorn app.main:app --reload
    ```
    The API is available at `http://localhost:8000/docs`.

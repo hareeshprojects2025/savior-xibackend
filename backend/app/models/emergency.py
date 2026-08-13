@@ -41,6 +41,10 @@ class Emergency(Base):
     pipeline_status = Column(String(50), nullable=True, default=None)
     dispatch_record_id = Column(Integer, nullable=True)
 
+    # Inbound-call gating: auto-dispatch waits while the victim is still on the line
+    inbound_call_active = Column(Boolean, default=False, nullable=False)
+    call_wait_deadline = Column(DateTime, nullable=True, default=None)
+
     # Geocoding enrichment fields
     geocoded_place_name = Column(String(500), nullable=True)
     geocoded_osm_type = Column(String(10), nullable=True)

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react"
+import { PhoneCall, PhoneIncoming } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { DispatchStatus } from "@/lib/types"
 
@@ -7,6 +8,20 @@ interface EscalationTimerProps {
   timeoutSeconds?: number
   onTimeout?: () => void
   status: DispatchStatus
+  callStatus?: string | null
+}
+
+const CALL_STATUS_LABELS: Record<string, string> = {
+  queued: "Call queued — waiting to connect",
+  initiated: "Call initiating…",
+  ringing: "Ringing station…",
+  connected: "Station connected — awaiting verbal ACK",
+  "in-progress": "Station connected — awaiting verbal ACK",
+  in_progress: "Station connected — awaiting verbal ACK",
+  completed: "Call ended — awaiting ACK update",
+  ended: "Call ended — awaiting ACK update",
+  stopped: "Call stopped after no answer",
+  call_error: "Call placement failed",
 }
 
 export function EscalationTimer({
@@ -14,6 +29,7 @@ export function EscalationTimer({
   timeoutSeconds = 120,
   onTimeout,
   status,
+  callStatus,
 }: EscalationTimerProps) {
   const calculateRemaining = () => {
     const elapsed = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000)
@@ -126,6 +142,24 @@ export function EscalationTimer({
           {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
         </div>
       </div>
+
+      {callStatus && (
+        <div className="flex items-center gap-2 mb-3 rounded-lg bg-blue-50 px-3 py-2">
+          {callStatus === "ringing" || callStatus === "queued" || callStatus === "initiated" ? (
+            <PhoneCall className="size-3.5 text-blue-600 animate-pulse shrink-0" />
+          ) : callStatus === "connected" || callStatus === "in-progress" || callStatus === "in_progress" ? (
+            <PhoneIncoming className="size-3.5 text-green-600 shrink-0" />
+          ) : null}
+          <p className={cn(
+            "text-xs font-semibold",
+            callStatus === "stopped" || callStatus === "call_error" ? "text-red-600" :
+            callStatus === "connected" || callStatus === "in-progress" || callStatus === "in_progress" ? "text-green-700" :
+            "text-blue-700"
+          )}>
+            {CALL_STATUS_LABELS[callStatus] || `Call status: ${callStatus}`}
+          </p>
+        </div>
+      )}
 
       {/* Progress bar */}
       <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
