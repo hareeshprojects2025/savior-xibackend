@@ -91,7 +91,7 @@ This ensures the emergency is created in the system as early as possible. The ba
 ## Known Limitations
 
 - **Language transfer:** Bolna platform-level language detection can override the system prompt. If the caller speaks mixed languages, configure the agent in the Bolna dashboard to use a single language (English) to prevent transfer.
-- **call_id reliability:** The LLM generates call_id — backend matching by `bolna_call_id` works best when the LLM provides a consistent unique value across both functions.
+- **call_id reliability:** The LLM generates call_id — reuse a single unique value across both functions so the mid-call `post_api_emergency` calls merge into one record. A mismatch with the real Bolna call ID is harmless: the backend also deduplicates terminal `/transcript/complete` webhooks by identical transcript content.
 - **Outbound trial restriction:** Bolna trial accounts can only call verified phone numbers. Add station numbers in Bolna dashboard → Settings → Verified Phone Numbers, or upgrade the account.
 - **Agent prompt variables:** The outbound dispatch agent's system prompt must reference `user_data` keys with single-brace `{field}` placeholders (e.g. `{station_name}`, NOT `{{user_data.station_name}}`) and must NOT contain hardcoded example incident data — the LLM will read examples instead of actual `user_data` variables.
 - **Webhook matching safety net:** If the `/transcript/complete` webhook cannot match a call to any emergency (via `call_id`, phone, or recency), the backend auto-creates an emergency from the webhook payload — so the agent should never worry about missing records.

@@ -34,6 +34,8 @@ savior/
 └── scripts/           ← Dev helpers
 ```
 
+**New to the project?** Start with [ONBOARDING.md](./ONBOARDING.md) (orientation/architecture) and [SETUP.md](./SETUP.md) (step-by-step environment bring-up, including Bolna agents, ACK webhook secret, and building the OSMnx road graph).
+
 ## Prerequisites
 
 - Python 3.11+
@@ -149,6 +151,12 @@ DATABASE_URL=mysql+pymysql://root:YOUR_PASSWORD@localhost:3306/savior_db
 BOLNA_API_TOKEN=bn-your_bolna_api_token_here
 BOLNA_AGENT_ID=your_inbound_agent_id_here
 BOLNA_DISPATCH_AGENT_ID=your_dispatch_agent_id_here
+
+# Shared secret for the dispatch ACK webhook (header: Authorization: Bearer <value>)
+BOLNA_WEBHOOK_SECRET=your_shared_webhook_secret_here
+
+# Max seconds to wait for the transcript-complete webhook before force-dispatch
+INBOUND_CALL_MAX_WAIT_SECONDS=180
 
 # Twilio SMS (location capture links)
 TWILIO_ACCOUNT_SID=your_account_sid

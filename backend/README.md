@@ -86,7 +86,7 @@ Swagger docs at `http://127.0.0.1:8000/docs`.
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/transcript/chunk` | Receive live transcript chunk — broadcasts `live_transcript` via WS, buffers if `call_id` present |
-| POST | `/api/transcript/complete` | Final transcript webhook (Bolna) — 5-level matching: (1) bolna_call_id, (2) exact phone, (3) 10-digit suffix, (4) most-recent-no-transcript fallback, (5) auto-create emergency from webhook data |
+| POST | `/api/transcript/complete` | Final transcript webhook (Bolna) — multi-strategy matching: (1) bolna_call_id, (2) exact phone, (3) 10-digit suffix, (4) most-recent-no-transcript fallback, (4A) reuse by identical stored transcript (re-fired webhook), (5) auto-create emergency from webhook data. An idempotency guard acknowledges a duplicate terminal webhook without re-storing chunks or re-running dispatch. |
 | GET | `/api/transcript/{id}/chunks` | List transcript chunks for an emergency |
 | GET | `/api/transcript/live-sessions` | Get active live transcription sessions (used by frontend for catch-up on WS reconnect) |
 
@@ -103,6 +103,8 @@ Swagger docs at `http://127.0.0.1:8000/docs`.
 | `BOLNA_API_TOKEN` | Bolna platform API token (outbound dispatch calls) |
 | `BOLNA_AGENT_ID` | Inbound agent ID (legacy reference) |
 | `BOLNA_DISPATCH_AGENT_ID` | Outbound dispatch agent ID used for station calls |
+| `BOLNA_WEBHOOK_SECRET` | Shared secret authenticating `POST /api/dispatch/ack` (header `Authorization: Bearer <secret>`). Must match the Bolna dashboard `station_ack_response` header. |
+| `INBOUND_CALL_MAX_WAIT_SECONDS` | Max seconds to wait for the transcript-complete webhook before force-dispatching (fail-open). Default `180`. |
 | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_PHONE_NUMBER` | Twilio SMS for location capture links |
 | `BASE_URL` | Public base URL used in SMS links (use your ngrok URL when testing with Bolna) |
 
@@ -163,11 +165,11 @@ backend/
 | `latitude` / `longitude` | Float | Nullable, geocoded from location + landmark |
 | `status` | Enum | pending → dispatched → en_route → resolved |
 | `full_transcript` | Text | Complete transcript text |
-| `bolna_call_id` | String | Nullable, indexed — Bolna call ID for matching |
+| `bolna_call_id` | String | Nullable, indexed — LLM-generated call ID from the inbound agent (NOT the real Bolna call ID). Used for mid-call idempotent merge; webhook dedup also matches by identical transcript. |
 | `created_at` | DateTime | Auto-set |
 | `location_captured` | Boolean | True when browser Geolocation API submits coords |
 | `district_check` | String | District name from GeoJSON boundary check (nullable) |
-| `pipeline_status` | String | awaiting_validation / validating / ranked / pending_ack / escalated / awaiting_redispatch / duplicate_found / pending_manual_review / dispatch_failed |
+| `pipeline_status` | String | validating / validated / ranked / awaiting_call_complete / awaiting_location / pending_manual_review / duplicate_found / pending_ack / escalated / awaiting_redispatch / dispatch_failed / dispatched |
 | `dispatch_record_id` | Integer | Latest DispatchRecord for this emergency |
 | `geocoded_place_name` | String | Photon result — place name |
 | `geocoded_osm_type` | String | OSM feature type (node/way/relation) |
@@ -227,6 +229,11 @@ Emergency created (coords present) → auto_trigger_dispatch_pipeline()
       → Broadcasts dispatch_update via WS
   → No stations / call failure → pipeline_status = "dispatch_failed", broadcasts dispatch_failed via WS
 ```
+
+**Inbound-call gate:** if the victim is still on the line (`inbound_call_active`), validation + ranking run but the station call is deferred to `awaiting_call_complete` until the `transcript/complete` webhook (or the `INBOUND_CALL_MAX_WAIT_SECONDS` lost-webhook sweep) releases it.
+
+### Geocoding vs real GPS
+Text geocoding (Photon) is biased to the Dharwad anchor `(15.3647, 75.1239)` and **rejects any result > 200 km away** (`MAX_ANCHOR_DISTANCE_KM`) as unreliable. A far-away text result never sets coords (which would skip the real-GPS SMS and wrongly flag `outside_coverage`). **Real browser GPS via `/api/location/{id}` is authoritative** — it overwrites coords and re-runs coverage.
 
 ### SMS Location Path (emergencies without coordinates)
 ```

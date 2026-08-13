@@ -74,3 +74,5 @@ Always test the outbound flow through the backend:
 4. The station's verbal ACK arrives as a `station_ack_response` webhook; the backend logs `Dispatch X acknowledged by station Y`.
 
 If the ACK is never recorded, check the backend log for `Orphan ACK webhook` — that means the webhook arrived but no dispatch record matched (dispatch pipeline failed earlier or identifiers did not match).
+
+**Repeated `401` on `/api/dispatch/ack`:** almost always the `Authorization` header. The backend requires exactly `Bearer <value>` (including the `Bearer ` prefix) and a value equal to `backend/.env` `BOLNA_WEBHOOK_SECRET`. On a fresh backend, a failing request logs `ACK auth mismatch | header_present=... | starts_with_bearer=...` to reveal what Bolna actually sent.
